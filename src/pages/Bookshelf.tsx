@@ -1,13 +1,15 @@
 
 import { useState, useEffect } from "react";
-import { UserBook, BookView, BookshelfFilters } from "@/types/book";
+import { UserBook, BookView, BookshelfFilters, Book } from "@/types/book";
 import BookCard from "@/components/BookCard";
 import BookshelfControls from "@/components/BookshelfControls";
 import EmptyState from "@/components/EmptyState";
-import { Bookmark, Plus } from "lucide-react";
+import { Bookmark, Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import AddBookModal from "@/components/AddBookModal";
+import { motion, AnimatePresence } from "framer-motion";
 
 // Mock book data
 const mockBooks: UserBook[] = [
@@ -89,6 +91,7 @@ const Bookshelf = () => {
   });
   
   const [isLoading, setIsLoading] = useState(true);
+  const [addBookModalOpen, setAddBookModalOpen] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -148,32 +151,69 @@ const Bookshelf = () => {
     }
   });
 
-  const handleAddBook = () => {
-    // In a real app, this would open a modal to add a book
-    // For now, we'll just navigate to the explore page
-    toast({
-      title: "Add a new book",
-      description: "Search for books to add to your shelf",
-    });
-    navigate("/explore");
+  const handleAddBook = (book: Book) => {
+    // Convert Book to UserBook
+    const newUserBook: UserBook = {
+      ...book,
+      status: "want-to-read", // Default status
+    };
+    
+    // Add to books array
+    setBooks([...books, newUserBook]);
+  };
+  
+  const handleBookClick = (bookId: string) => {
+    navigate(`/book/${bookId}`);
+  };
+  
+  // Animation variants
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1
+      }
+    }
+  };
+  
+  const bookVariants = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0, transition: { duration: 0.3 } }
   };
   
   return (
     <div className="container mx-auto py-8 px-4">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-playfair font-bold">My Bookshelf</h1>
-        <Button onClick={handleAddBook}>
+        <motion.h1 
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5 }}
+          className="text-3xl font-playfair font-bold"
+        >
+          My Bookshelf
+        </motion.h1>
+        <Button 
+          onClick={() => setAddBookModalOpen(true)}
+          className="transition-all duration-300 hover:scale-105"
+        >
           <Plus className="h-4 w-4 mr-2" />
           Add Book
         </Button>
       </div>
       
-      <BookshelfControls
-        view={view}
-        setView={setView}
-        filters={filters}
-        setFilters={setFilters}
-      />
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
+      >
+        <BookshelfControls
+          view={view}
+          setView={setView}
+          filters={filters}
+          setFilters={setFilters}
+        />
+      </motion.div>
       
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
@@ -189,17 +229,30 @@ const Bookshelf = () => {
           ))}
         </div>
       ) : sortedBooks.length > 0 ? (
-        <div 
+        <motion.div 
+          variants={containerVariants}
+          initial="hidden"
+          animate="show"
           className={
             view === "grid"
               ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
               : "flex flex-col gap-4"
           }
         >
-          {sortedBooks.map((book) => (
-            <BookCard key={book.id} book={book} view={view} />
-          ))}
-        </div>
+          <AnimatePresence>
+            {sortedBooks.map((book) => (
+              <motion.div 
+                key={book.id}
+                variants={bookVariants}
+                onClick={() => handleBookClick(book.id)}
+                className="cursor-pointer hover:scale-[1.02] transition-transform duration-300"
+                whileHover={{ y: -5 }}
+              >
+                <BookCard book={book} view={view} />
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </motion.div>
       ) : (
         <EmptyState
           icon={<Bookmark className="h-8 w-8 text-muted-foreground" />}
@@ -207,11 +260,17 @@ const Bookshelf = () => {
           description="Start adding books to your bookshelf to keep track of your reading journey."
           action={{
             label: "Add your first book",
-            onClick: handleAddBook,
+            onClick: () => setAddBookModalOpen(true),
           }}
           className="my-12"
         />
       )}
+      
+      <AddBookModal
+        open={addBookModalOpen}
+        onOpenChange={setAddBookModalOpen}
+        onAddBook={handleAddBook}
+      />
     </div>
   );
 };

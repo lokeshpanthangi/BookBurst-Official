@@ -49,7 +49,7 @@
   }
 
   .dark {
-    /* Dark Theme */
+    /* Dark Theme - Updated with Sky Blue as primary */
     --background: 210 28% 15%;  /* Deep Navy #1A2530 */
     --foreground: 180 5% 94%;   /* Soft Ivory #ECF0F1 */
 
@@ -59,7 +59,7 @@
     --popover: 210 28% 15%;
     --popover-foreground: 180 5% 94%;
 
-    --primary: 148 36% 65%;  /* Soft Sage #7DCEA0 */
+    --primary: 199 89% 48%;  /* Sky Blue #33C3F0 - Updated */
     --primary-foreground: 210 28% 15%;
 
     --secondary: 48 86% 70%;  /* Amber Gold #F7DC6F */
@@ -76,7 +76,7 @@
 
     --border: 226 17% 43%; /* Slate Gray #5D6D7E */
     --input: 226 17% 43%;
-    --ring: 148 36% 65%;
+    --ring: 199 89% 48%;  /* Sky Blue for ring as well */
 
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;

@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { UserBook } from "@/types/book";
 import { Review } from "@/types/review";
 import BookDetailHeader from "@/components/BookDetailHeader";
@@ -9,8 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { ArrowLeft, Edit, Bookmark } from "lucide-react";
+import { motion } from "framer-motion";
+import ReadingProgressModal from "@/components/ReadingProgressModal";
 
 // Mock book data
 const mockBooks: UserBook[] = [
@@ -84,10 +85,13 @@ const BookDetail = () => {
   const [notes, setNotes] = useState("");
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [progressModalOpen, setProgressModalOpen] = useState(false);
+  const [animateEntry, setAnimateEntry] = useState(true);
   
   useEffect(() => {
     // Simulate loading the book data
     setIsLoading(true);
+    setAnimateEntry(true);
     
     setTimeout(() => {
       const foundBook = mockBooks.find(b => b.id === id);
@@ -145,6 +149,43 @@ const BookDetail = () => {
       description: "Your notes have been saved",
     });
   };
+
+  const handleUpdateProgress = (bookId: string, progress: number, startDate?: string) => {
+    if (!book) return;
+    
+    setBook({
+      ...book,
+      progress,
+      startDate: startDate || book.startDate,
+    });
+    
+    toast({
+      title: "Progress updated",
+      description: `Progress updated to ${progress}%`,
+    });
+  };
+  
+  // Animation variants
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { 
+      opacity: 1,
+      transition: { 
+        duration: 0.5,
+        when: "beforeChildren", 
+        staggerChildren: 0.2 
+      }
+    },
+    exit: {
+      opacity: 0,
+      transition: { duration: 0.3 }
+    }
+  };
+  
+  const childVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
+  };
   
   if (isLoading) {
     return (
@@ -187,7 +228,12 @@ const BookDetail = () => {
   }
   
   return (
-    <div>
+    <motion.div
+      variants={containerVariants}
+      initial={animateEntry ? "hidden" : "visible"}
+      animate="visible"
+      exit="exit"
+    >
       <BookDetailHeader
         book={book}
         onStatusChange={handleStatusChange}
@@ -195,107 +241,189 @@ const BookDetail = () => {
       />
       
       <div className="container mx-auto py-8 px-4">
-        <Tabs defaultValue="details">
-          <TabsList className="mb-6">
-            <TabsTrigger value="details">Details</TabsTrigger>
-            <TabsTrigger value="notes">Notes</TabsTrigger>
-            <TabsTrigger value="reviews">Reviews</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="details" className="space-y-6">
-            <div className="bg-card border rounded-lg p-6">
-              <h2 className="font-playfair text-2xl font-semibold mb-4">About this book</h2>
-              <p className="text-muted-foreground mb-6">{book.description}</p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {book.publishedDate && (
-                  <div>
-                    <h3 className="font-medium text-sm text-muted-foreground">Published</h3>
-                    <p>{book.publishedDate}</p>
+        {book.status === "currently-reading" && (
+          <motion.div 
+            variants={childVariants}
+            className="mb-8"
+          >
+            <div className="bg-card border rounded-lg p-6 flex flex-col md:flex-row items-center justify-between">
+              <div className="flex-1">
+                <h3 className="font-semibold mb-2">Reading Progress</h3>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 max-w-md">
+                    <div className="flex justify-between text-sm mb-1">
+                      <span>Progress</span>
+                      <span>{book.progress || 0}%</span>
+                    </div>
+                    <div className="progress-bar">
+                      <motion.div
+                        className="progress-bar-fill"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${book.progress || 0}%` }}
+                        transition={{ duration: 1, ease: "easeOut" }}
+                      ></motion.div>
+                    </div>
                   </div>
-                )}
-                
-                {book.publisher && (
-                  <div>
-                    <h3 className="font-medium text-sm text-muted-foreground">Publisher</h3>
-                    <p>{book.publisher}</p>
-                  </div>
-                )}
-                
-                {book.pageCount && (
-                  <div>
-                    <h3 className="font-medium text-sm text-muted-foreground">Pages</h3>
-                    <p>{book.pageCount}</p>
-                  </div>
-                )}
-                
-                {book.isbn && (
-                  <div>
-                    <h3 className="font-medium text-sm text-muted-foreground">ISBN</h3>
-                    <p>{book.isbn}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            {book.genres && book.genres.length > 0 && (
-              <div className="bg-card border rounded-lg p-6">
-                <h2 className="font-playfair text-2xl font-semibold mb-4">Genres</h2>
-                <div className="flex flex-wrap gap-2">
-                  {book.genres.map((genre) => (
-                    <span
-                      key={genre}
-                      className="px-3 py-1.5 bg-secondary/10 rounded-full text-sm text-secondary-foreground"
-                    >
-                      {genre}
-                    </span>
-                  ))}
                 </div>
+                <p className="text-sm text-muted-foreground mt-2">
+                  {book.startDate ? `Started on ${book.startDate}` : "Start date not set"}
+                </p>
               </div>
-            )}
-          </TabsContent>
-          
-          <TabsContent value="notes">
-            <div className="bg-card border rounded-lg p-6">
-              <h2 className="font-playfair text-2xl font-semibold mb-4">Your Notes</h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                Add your personal notes, thoughts, and reflections about this book.
-              </p>
-              
-              <Textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Write your notes here..."
-                className="min-h-[200px] mb-4"
-              />
-              
-              <Button onClick={saveNotes}>Save Notes</Button>
+              <Button 
+                onClick={() => setProgressModalOpen(true)} 
+                variant="outline"
+                className="mt-4 md:mt-0 md:ml-4 transition-transform duration-300 hover:scale-105"
+              >
+                <Edit className="mr-2 h-4 w-4" /> Update Progress
+              </Button>
             </div>
-          </TabsContent>
-          
-          <TabsContent value="reviews">
-            <div className="space-y-6">
-              <div className="bg-card border rounded-lg p-6">
-                <h2 className="font-playfair text-2xl font-semibold mb-4">Reviews</h2>
+          </motion.div>
+        )}
+        
+        <motion.div variants={childVariants}>
+          <Tabs defaultValue="details" className="animate-fade-in">
+            <TabsList className="mb-6">
+              <TabsTrigger value="details">Details</TabsTrigger>
+              <TabsTrigger value="notes">Notes</TabsTrigger>
+              <TabsTrigger value="reviews">Reviews</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="details" className="space-y-6">
+              <motion.div 
+                className="bg-card border rounded-lg p-6"
+                variants={childVariants}
+                initial="hidden"
+                animate="visible"
+              >
+                <h2 className="font-playfair text-2xl font-semibold mb-4">About this book</h2>
+                <p className="text-muted-foreground mb-6">{book.description}</p>
                 
-                {reviews.length > 0 ? (
-                  <div className="space-y-6">
-                    {reviews.map((review) => (
-                      <ReviewCard key={review.id} review={review} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {book.publishedDate && (
+                    <div>
+                      <h3 className="font-medium text-sm text-muted-foreground">Published</h3>
+                      <p>{book.publishedDate}</p>
+                    </div>
+                  )}
+                  
+                  {book.publisher && (
+                    <div>
+                      <h3 className="font-medium text-sm text-muted-foreground">Publisher</h3>
+                      <p>{book.publisher}</p>
+                    </div>
+                  )}
+                  
+                  {book.pageCount && (
+                    <div>
+                      <h3 className="font-medium text-sm text-muted-foreground">Pages</h3>
+                      <p>{book.pageCount}</p>
+                    </div>
+                  )}
+                  
+                  {book.isbn && (
+                    <div>
+                      <h3 className="font-medium text-sm text-muted-foreground">ISBN</h3>
+                      <p>{book.isbn}</p>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+              
+              {book.genres && book.genres.length > 0 && (
+                <motion.div 
+                  className="bg-card border rounded-lg p-6"
+                  variants={childVariants}
+                  initial="hidden"
+                  animate="visible"
+                >
+                  <h2 className="font-playfair text-2xl font-semibold mb-4">Genres</h2>
+                  <div className="flex flex-wrap gap-2">
+                    {book.genres.map((genre) => (
+                      <span
+                        key={genre}
+                        className="px-3 py-1.5 bg-secondary/10 rounded-full text-sm text-secondary-foreground transition-all duration-300 hover:bg-secondary/20"
+                      >
+                        {genre}
+                      </span>
                     ))}
                   </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <p className="text-muted-foreground mb-4">No reviews yet</p>
-                    <Button>Write the first review</Button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </TabsContent>
-        </Tabs>
+                </motion.div>
+              )}
+            </TabsContent>
+            
+            <TabsContent value="notes">
+              <motion.div 
+                className="bg-card border rounded-lg p-6"
+                variants={childVariants}
+                initial="hidden"
+                animate="visible"
+              >
+                <h2 className="font-playfair text-2xl font-semibold mb-4">Your Notes</h2>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Add your personal notes, thoughts, and reflections about this book.
+                </p>
+                
+                <Textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Write your notes here..."
+                  className="min-h-[200px] mb-4 transition-all duration-300 focus:border-primary"
+                />
+                
+                <Button 
+                  onClick={saveNotes}
+                  className="transition-transform duration-300 hover:scale-105"
+                >
+                  Save Notes
+                </Button>
+              </motion.div>
+            </TabsContent>
+            
+            <TabsContent value="reviews">
+              <motion.div 
+                className="space-y-6"
+                variants={childVariants}
+                initial="hidden"
+                animate="visible"
+              >
+                <div className="bg-card border rounded-lg p-6">
+                  <h2 className="font-playfair text-2xl font-semibold mb-4">Reviews</h2>
+                  
+                  {reviews.length > 0 ? (
+                    <div className="space-y-6">
+                      {reviews.map((review) => (
+                        <motion.div 
+                          key={review.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.4 }}
+                        >
+                          <ReviewCard review={review} />
+                        </motion.div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <p className="text-muted-foreground mb-4">No reviews yet</p>
+                      <Button className="transition-all duration-300 hover:scale-105">
+                        Write the first review
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </TabsContent>
+          </Tabs>
+        </motion.div>
       </div>
-    </div>
+      
+      <ReadingProgressModal
+        book={book}
+        open={progressModalOpen}
+        onOpenChange={setProgressModalOpen}
+        onUpdateProgress={handleUpdateProgress}
+      />
+    </motion.div>
   );
 };
 
