@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Book } from "@/types/book";
 import { Button } from "@/components/ui/button";
@@ -24,6 +23,7 @@ import {
 import { X, Search, BookPlus, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { motion } from "framer-motion";
 
 interface AddBookModalProps {
   open: boolean;

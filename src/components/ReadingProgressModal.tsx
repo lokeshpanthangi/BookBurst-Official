@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { UserBook } from "@/types/book";
 import { Button } from "@/components/ui/button";
@@ -23,6 +22,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { format } from "date-fns";
+import { motion } from "framer-motion";
 
 interface ReadingProgressModalProps {
   book: UserBook;
