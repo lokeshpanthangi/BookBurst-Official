@@ -1,84 +1,83 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800;900&family=Nunito+Sans:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Light Theme */
+    --background: 42 33% 95%;  /* Warm Paper #F9F5E9 */
+    --foreground: 209 29% 25%; /* Deep Charcoal #2C3E50 */
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 209 29% 25%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 209 29% 25%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 199 89% 48%;  /* Sky Blue #33C3F0 */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 48 89% 60%;  /* Warm Gold #F4D03F */
+    --secondary-foreground: 209 29% 25%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 195 5% 85%;  /* Warm Gray #D5DBDB */
+    --muted-foreground: 209 20% 35%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 9 78% 57%;  /* Burnt Sienna #E74C3C */
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 72% 74%;  /* Light Crimson #F1948A */
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 195 5% 85%;  /* Warm Gray #D5DBDB */
+    --input: 195 5% 85%;
+    --ring: 199 89% 48%;
 
-    --radius: 0.5rem;
-
+    --radius: 0.75rem;
+    
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    /* Dark Theme */
+    --background: 210 28% 15%;  /* Deep Navy #1A2530 */
+    --foreground: 180 5% 94%;   /* Soft Ivory #ECF0F1 */
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 210 28% 15%;
+    --card-foreground: 180 5% 94%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 210 28% 15%;
+    --popover-foreground: 180 5% 94%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 148 36% 65%;  /* Soft Sage #7DCEA0 */
+    --primary-foreground: 210 28% 15%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 48 86% 70%;  /* Amber Gold #F7DC6F */
+    --secondary-foreground: 210 28% 15%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 226 17% 43%;  /* Slate Gray #5D6D7E */
+    --muted-foreground: 180 5% 84%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 6 100% 73%;  /* Coral #FF7675 */
+    --accent-foreground: 210 28% 15%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 60% 83%;  /* Soft Red #F5B7B1 */
+    --destructive-foreground: 210 28% 15%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --border: 226 17% 43%; /* Slate Gray #5D6D7E */
+    --input: 226 17% 43%;
+    --ring: 148 36% 65%;
+
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
@@ -96,6 +95,93 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-nunito;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-playfair;
+  }
+
+  .book-card {
+    @apply relative transition-all duration-300 bg-card border rounded-lg overflow-hidden hover:shadow-lg;
+  }
+
+  .book-card-image {
+    @apply aspect-[2/3] relative overflow-hidden;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2 py-1 rounded text-xs font-medium;
+  }
+
+  .badge-currently-reading {
+    @apply bg-primary/10 text-primary;
+  }
+
+  .badge-want-to-read {
+    @apply bg-secondary/20 text-secondary-foreground;
+  }
+
+  .badge-finished {
+    @apply bg-accent/10 text-accent;
+  }
+
+  .star-rating {
+    @apply inline-flex items-center;
+  }
+
+  .star {
+    @apply text-gray-300 transition-colors duration-200 hover:text-secondary;
+  }
+
+  .star.filled {
+    @apply text-secondary;
+  }
+  
+  .card-gradient {
+    @apply bg-gradient-to-br from-card to-secondary/10 backdrop-blur-sm;
+  }
+  
+  .hover-scale {
+    @apply transition-transform duration-200 hover:scale-105;
+  }
+}
+
+@layer components {
+  .book-cover {
+    @apply relative rounded-md overflow-hidden shadow-md transition-all duration-300 aspect-[2/3] bg-muted;
+  }
+
+  .book-cover img {
+    @apply object-cover w-full h-full;
+  }
+
+  .progress-bar {
+    @apply h-1.5 bg-muted rounded-full overflow-hidden;
+  }
+
+  .progress-bar-fill {
+    @apply h-full bg-primary transition-all duration-300;
+  }
+  
+  .story-link * {
+    @apply relative inline-block after:content-[''] after:absolute after:w-full after:scale-x-0 after:h-0.5 after:bottom-0 after:left-0 after:bg-primary after:origin-bottom-right after:transition-transform after:duration-300 hover:after:scale-x-100 hover:after:origin-bottom-left;
+  }
+
+  .floating-label {
+    @apply absolute left-3 transition-all duration-200 pointer-events-none;
+  }
+
+  .input-filled ~ .floating-label,
+  input:focus ~ .floating-label {
+    @apply transform -translate-y-5 scale-75 text-primary;
+  }
+  
+  .timeline-node {
+    @apply w-4 h-4 rounded-full bg-primary absolute left-0 translate-x-[-50%] border-4 border-background;
+  }
+  
+  .timeline-line {
+    @apply absolute left-0 top-0 bottom-0 w-0.5 bg-muted/70;
   }
 }
