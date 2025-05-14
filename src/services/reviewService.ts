@@ -3,6 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Review } from "@/types/review";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { Json } from "@/integrations/supabase/types";
 
 // Get reviews for a book
 export const useBookReviews = (bookId: string) => {
@@ -44,13 +46,17 @@ export const useBookReviews = (bookId: string) => {
 export const useAddReview = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
   
   return useMutation({
     mutationFn: async (review: Omit<Review, "id" | "userName" | "userAvatar" | "datePosted" | "likes">) => {
+      if (!user) throw new Error("User must be authenticated");
+      
       const { data, error } = await supabase
         .from('reviews')
         .insert([{
           book_id: review.bookId,
+          user_id: user.id,
           rating: review.rating,
           content: review.content,
           spoiler: review.spoiler,
@@ -66,10 +72,11 @@ export const useAddReview = () => {
         .from('reading_activity')
         .insert([{
           book_id: review.bookId,
+          user_id: user.id,
           activity_type: 'reviewed',
           details: {
             rating: review.rating,
-          },
+          } as Json,
         }]);
       
       return data;

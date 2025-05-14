@@ -14,12 +14,12 @@ interface TimelineEvent {
 
 // Get user's reading timeline
 export const useReadingTimeline = () => {
-  const { user: authUser } = useAuth();
+  const { user } = useAuth();
   
   return useQuery({
     queryKey: ['readingTimeline'],
     queryFn: async () => {
-      if (!authUser) throw new Error('User not authenticated');
+      if (!user) throw new Error('User not authenticated');
       
       const { data, error } = await supabase
         .from('reading_activity')
@@ -27,7 +27,7 @@ export const useReadingTimeline = () => {
           *,
           books:book_id(*)
         `)
-        .eq('user_id', authUser.id)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
       
       if (error) throw error;
@@ -38,8 +38,8 @@ export const useReadingTimeline = () => {
           id: activity.books.id,
           title: activity.books.title,
           author: activity.books.author,
-          coverImage: activity.books.cover_image,
-          description: activity.books.description,
+          coverImage: activity.books.cover_image || '',
+          description: activity.books.description || '',
           status: activity.activity_type === 'finished' ? 'finished' 
             : activity.activity_type === 'started' ? 'currently-reading' 
             : 'want-to-read',
@@ -57,6 +57,6 @@ export const useReadingTimeline = () => {
       
       return timeline;
     },
-    enabled: !!authUser,
+    enabled: !!user,
   });
 };

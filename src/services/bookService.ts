@@ -3,6 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Book, UserBook, BookshelfFilters } from "@/types/book";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { Json } from "@/integrations/supabase/types";
 
 // Get all books from the database
 export const useBooks = () => {
@@ -14,7 +16,22 @@ export const useBooks = () => {
         .select('*');
       
       if (error) throw error;
-      return data as Book[];
+      
+      // Map database fields to our Book type
+      const books: Book[] = data.map(item => ({
+        id: item.id,
+        title: item.title,
+        author: item.author,
+        coverImage: item.cover_image || '',
+        description: item.description || '',
+        publishedDate: item.published_date,
+        publisher: item.publisher,
+        pageCount: item.page_count,
+        isbn: item.isbn,
+        language: item.language
+      }));
+      
+      return books;
     },
   });
 };
@@ -36,8 +53,17 @@ export const useBook = (id: string) => {
       if (error) throw error;
       
       const formattedBook: Book = {
-        ...data,
-        genres: data.book_genres.map((bg: any) => bg.genres.name),
+        id: data.id,
+        title: data.title,
+        author: data.author,
+        coverImage: data.cover_image || '',
+        description: data.description || '',
+        publishedDate: data.published_date,
+        publisher: data.publisher,
+        pageCount: data.page_count,
+        isbn: data.isbn,
+        language: data.language,
+        genres: data.book_genres?.map((bg: any) => bg.genres.name) || [],
       };
       
       return formattedBook;
@@ -48,15 +74,20 @@ export const useBook = (id: string) => {
 
 // Get user's books with filters
 export const useUserBooks = (filters: BookshelfFilters = {}) => {
+  const { user } = useAuth();
+  
   return useQuery({
     queryKey: ['userBooks', filters],
     queryFn: async () => {
+      if (!user) throw new Error("User must be authenticated");
+      
       let query = supabase
         .from('user_books')
         .select(`
           *,
           books(*)
-        `);
+        `)
+        .eq('user_id', user.id);
       
       // Apply status filter
       if (filters.status && filters.status !== 'all') {
@@ -72,8 +103,8 @@ export const useUserBooks = (filters: BookshelfFilters = {}) => {
         id: item.books.id,
         title: item.books.title,
         author: item.books.author,
-        coverImage: item.books.cover_image,
-        description: item.books.description,
+        coverImage: item.books.cover_image || '',
+        description: item.books.description || '',
         publishedDate: item.books.published_date,
         publisher: item.books.publisher,
         pageCount: item.books.page_count,
@@ -90,6 +121,7 @@ export const useUserBooks = (filters: BookshelfFilters = {}) => {
       
       return userBooks;
     },
+    enabled: !!user,
   });
 };
 
@@ -100,9 +132,22 @@ export const useAddBook = () => {
   
   return useMutation({
     mutationFn: async (book: Omit<Book, "id">) => {
+      // Map our Book type to database schema
+      const dbBook = {
+        title: book.title,
+        author: book.author,
+        cover_image: book.coverImage,
+        description: book.description,
+        published_date: book.publishedDate,
+        publisher: book.publisher,
+        page_count: book.pageCount,
+        isbn: book.isbn,
+        language: book.language
+      };
+      
       const { data, error } = await supabase
         .from('books')
-        .insert([book])
+        .insert([dbBook])
         .select()
         .single();
       
@@ -130,6 +175,7 @@ export const useAddBook = () => {
 export const useAddUserBook = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
   
   return useMutation({
     mutationFn: async ({ 
@@ -139,11 +185,14 @@ export const useAddUserBook = () => {
       bookId: string; 
       status: 'currently-reading' | 'want-to-read' | 'finished'
     }) => {
+      if (!user) throw new Error("User must be authenticated");
+      
       // First check if the user already has this book
       const { data: existingBook } = await supabase
         .from('user_books')
         .select('*')
-        .eq('book_id', bookId);
+        .eq('book_id', bookId)
+        .eq('user_id', user.id);
       
       if (existingBook && existingBook.length > 0) {
         throw new Error('This book is already in your collection');
@@ -155,6 +204,7 @@ export const useAddUserBook = () => {
         .insert([{
           book_id: bookId,
           status,
+          user_id: user.id
         }])
         .select()
         .single();
@@ -166,10 +216,11 @@ export const useAddUserBook = () => {
         .from('reading_activity')
         .insert([{
           book_id: bookId,
+          user_id: user.id,
           activity_type: status === 'finished' ? 'finished' : status === 'currently-reading' ? 'started' : 'updated',
           details: {
             status,
-          },
+          } as Json,
         }]);
       
       return data;
@@ -195,6 +246,7 @@ export const useAddUserBook = () => {
 export const useUpdateUserBook = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
   
   return useMutation({
     mutationFn: async ({ 
@@ -204,6 +256,8 @@ export const useUpdateUserBook = () => {
       id: string; 
       updates: Partial<UserBook>
     }) => {
+      if (!user) throw new Error("User must be authenticated");
+      
       // Map user book updates to the database schema
       const dbUpdates: any = {};
       
@@ -228,8 +282,9 @@ export const useUpdateUserBook = () => {
         .from('reading_activity')
         .insert([{
           book_id: data.book_id,
+          user_id: user.id,
           activity_type: updates.status === 'finished' ? 'finished' : 'updated',
-          details: dbUpdates,
+          details: dbUpdates as Json,
         }]);
       
       return data;
