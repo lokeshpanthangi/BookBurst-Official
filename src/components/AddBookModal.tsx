@@ -26,6 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 
 interface AddBookModalProps {
   open: boolean;
@@ -63,6 +64,7 @@ const AddBookModal = ({ open, onOpenChange, onAddBook }: AddBookModalProps) => {
   
   const [status, setStatus] = useState<'want-to-read' | 'currently-reading' | 'finished'>('want-to-read');
   const [readingProgress, setReadingProgress] = useState<number>(0);
+  const [isPublic, setIsPublic] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [addError, setAddError] = useState<string | null>(null);
@@ -293,14 +295,14 @@ const AddBookModal = ({ open, onOpenChange, onAddBook }: AddBookModalProps) => {
       const { data: userBookData, error: userBookError } = await supabase
         .from('user_books')
         .insert({
-          user_id: user.id, // Add the user_id field to satisfy RLS policy
           book_id: bookId,
+          user_id: user.id,
           status: status,
-          progress: status === 'currently-reading' ? readingProgress : 0,
+          progress: status === 'currently-reading' ? readingProgress : status === 'finished' ? 100 : 0,
           start_date: status === 'currently-reading' || status === 'finished' ? new Date().toISOString() : null,
-          finish_date: status === 'finished' ? new Date().toISOString() : null
-        })
-        .select()
+          finish_date: status === 'finished' ? new Date().toISOString() : null,
+          is_public: isPublic
+        }).select()
         .single();
       
       if (userBookError) {
@@ -730,6 +732,17 @@ const AddBookModal = ({ open, onOpenChange, onAddBook }: AddBookModalProps) => {
                 />
               </div>
             )}
+            
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="public"
+                checked={isPublic}
+                onCheckedChange={setIsPublic}
+              />
+              <Label htmlFor="public" className="cursor-pointer">
+                Make this book public in your bookshelf
+              </Label>
+            </div>
           </div>
         )}
         

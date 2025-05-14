@@ -6,6 +6,8 @@ import { ArrowLeft, Bookmark, MessageSquare, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -33,6 +35,7 @@ const GoogleBookDetail = () => {
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [newReview, setNewReview] = useState("");
   const [reviewRating, setReviewRating] = useState(0);
+  const [isRecommended, setIsRecommended] = useState(false);
   
   // Book database ID (if the book exists in our database)
   const [dbBookId, setDbBookId] = useState<string | null>(null);
@@ -236,18 +239,19 @@ const GoogleBookDetail = () => {
       }
       
       // Add the review
+      const reviewData = {
+        book_id: bookIdToUse,
+        user_id: user.id,
+        rating: reviewRating,
+        content: newReview,
+        date_posted: new Date().toISOString(),
+        recommended: isRecommended,
+        likes: 0,
+        spoiler: false
+      };
       const { data, error } = await supabase
         .from('reviews')
-        .insert({
-          book_id: bookIdToUse,
-          user_id: user.id,
-          content: newReview,
-          rating: reviewRating,
-          date_posted: new Date().toISOString(),
-          likes: 0,
-          recommended: true,
-          spoiler: false
-        })
+        .insert(reviewData)
         .select()
         .single();
       
@@ -489,6 +493,15 @@ const GoogleBookDetail = () => {
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium">Rating:</span>
                     <Rating value={reviewRating} onChange={setReviewRating} />
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="recommend"
+                      checked={isRecommended}
+                      onCheckedChange={setIsRecommended}
+                    />
+                    <Label htmlFor="recommend" className="cursor-pointer">Recommend this book</Label>
                   </div>
                   
                   <Textarea

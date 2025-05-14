@@ -148,7 +148,12 @@ const BookReviews: React.FC<BookReviewsProps> = ({ bookId, onWriteReview }) => {
                       </p>
                     </div>
                   </div>
-                  <Rating value={review.rating} readOnly />
+                  <div className="flex flex-col items-end">
+                    <Rating value={review.rating} readOnly />
+                    {review.recommended && (
+                      <span className="text-xs text-green-600 font-semibold mt-1 px-2 py-0.5 bg-green-50 rounded-full">Recommended</span>
+                    )}
+                  </div>
                 </div>
                 <p className="text-sm">{review.content}</p>
                 <div className="flex items-center gap-2 text-muted-foreground">

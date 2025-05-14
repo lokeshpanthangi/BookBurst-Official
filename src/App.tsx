@@ -21,6 +21,7 @@ import Profile from "./pages/Profile";
 import Auth from "./pages/Auth";
 import Community from "./pages/Community";
 import UserProfile from "./pages/UserProfile";
+import Analytics from "./pages/Analytics";
 
 const queryClient = new QueryClient();
 
@@ -62,6 +63,11 @@ const App = () => (
                 } />
                 <Route path="/community" element={<Community />} />
                 <Route path="/community/:userId" element={<UserProfile />} />
+                <Route path="/analytics" element={
+                  <ProtectedRoute>
+                    <Analytics />
+                  </ProtectedRoute>
+                } />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>

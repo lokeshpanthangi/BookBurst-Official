@@ -3,6 +3,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { ArrowLeft, MessageSquare, Star, X, FileText, Save, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -27,6 +29,7 @@ const UserBookDetail = () => {
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [newReview, setNewReview] = useState("");
   const [reviewRating, setReviewRating] = useState(0);
+  const [isRecommended, setIsRecommended] = useState(false);
   
   // User book state
   const [userBook, setUserBook] = useState<any>(null);
@@ -471,7 +474,7 @@ const UserBookDetail = () => {
         rating: reviewRating,
         date_posted: new Date().toISOString(),
         spoiler: false,
-        recommended: true
+        recommended: isRecommended
       };
       
       const { data, error } = await supabase
@@ -494,7 +497,7 @@ const UserBookDetail = () => {
           datePosted: data.date_posted || new Date().toISOString(),
           likes: 0,
           spoiler: false,
-          recommended: true
+          recommended: data.recommended
         };
         
         setReviews([newFormattedReview, ...reviews]);
@@ -700,14 +703,19 @@ const UserBookDetail = () => {
                               </p>
                             </div>
                           </div>
-                          <div className="flex items-center">
-                            {[1, 2, 3, 4, 5].map(star => (
-                              <Star
-                                key={star}
-                                size={16}
-                                className={star <= review.rating ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"}
-                              />
-                            ))}
+                          <div className="flex flex-col items-end">
+                            <div className="flex items-center">
+                              {[1, 2, 3, 4, 5].map(star => (
+                                <Star
+                                  key={star}
+                                  size={16}
+                                  className={star <= review.rating ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"}
+                                />
+                              ))}
+                            </div>
+                            {review.recommended && (
+                              <span className="text-xs text-green-600 font-semibold mt-1 px-2 py-0.5 bg-green-50 rounded-full">Recommended</span>
+                            )}
                           </div>
                         </div>
                         <div className="mt-3">
@@ -790,6 +798,15 @@ const UserBookDetail = () => {
                     placeholder="Share your thoughts about this book..."
                     className="min-h-[150px]"
                   />
+                </div>
+                
+                <div className="flex items-center gap-2 mb-4">
+                  <Switch
+                    id="recommend"
+                    checked={isRecommended}
+                    onCheckedChange={setIsRecommended}
+                  />
+                  <Label htmlFor="recommend" className="cursor-pointer">Recommend this book</Label>
                 </div>
                 
                 <div className="flex justify-end gap-2">

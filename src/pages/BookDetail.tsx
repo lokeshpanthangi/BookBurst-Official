@@ -33,6 +33,7 @@ const BookDetail = () => {
   const [notes, setNotes] = useState("");
   const [newReview, setNewReview] = useState("");
   const [reviewRating, setReviewRating] = useState(0);
+  const [isRecommended, setIsRecommended] = useState(false);
   const [isPublic, setIsPublic] = useState(true);
   const [progressModalOpen, setProgressModalOpen] = useState(false);
   const [addToBookshelfModalOpen, setAddToBookshelfModalOpen] = useState(false);
@@ -433,10 +434,9 @@ const BookDetail = () => {
   };
   
   const openReviewModal = () => {
-    if (!book || !user || !isInCollection) return;
     setReviewModalOpen(true);
   };
-  
+
   const submitReview = async () => {
     if (!book || !user || !newReview || reviewRating === 0) return;
     
@@ -448,7 +448,7 @@ const BookDetail = () => {
         rating: reviewRating,
         date_posted: new Date().toISOString(),
         spoiler: false,
-        recommended: true
+        recommended: isRecommended
       };
       
       const { data, error } = await supabase
@@ -471,7 +471,7 @@ const BookDetail = () => {
           datePosted: data.date_posted || new Date().toISOString(),
           likes: 0,
           spoiler: false,
-          recommended: true
+          recommended: data.recommended
         };
         
         setReviews([newFormattedReview, ...reviews]);
@@ -832,7 +832,12 @@ const BookDetail = () => {
                                 </p>
                               </div>
                             </div>
-                            <Rating value={review.rating} readOnly />
+                            <div className="flex flex-col items-end">
+                              <Rating value={review.rating} readOnly />
+                              {review.recommended && (
+                                <span className="text-xs text-green-600 font-semibold mt-1 px-2 py-0.5 bg-green-50 rounded-full">Recommended</span>
+                              )}
+                            </div>
                           </div>
                           <p className="text-sm">{review.content}</p>
                           <div className="flex items-center gap-2 text-muted-foreground">
@@ -910,6 +915,15 @@ const BookDetail = () => {
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">Rating:</span>
                       <Rating value={reviewRating} onChange={setReviewRating} />
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="recommend"
+                        checked={isRecommended}
+                        onCheckedChange={setIsRecommended}
+                      />
+                      <Label htmlFor="recommend" className="cursor-pointer">Recommend this book</Label>
                     </div>
                     
                     <Textarea

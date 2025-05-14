@@ -5,8 +5,8 @@ import { UserBook } from "@/types/book";
 import StarRating from "@/components/StarRating";
 import BookCover from "@/components/BookCover";
 import { Button } from "@/components/ui/button";
-import { Link } from "react-router-dom";
-import { BookOpen, Award, Library, BookMarked, BookOpenCheck, BookPlus } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { BookOpen, Award, Library, BookMarked, BookOpenCheck, BookPlus, BarChart2 } from "lucide-react";
 import { useUserProfile } from "@/services/userService";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -18,6 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 const Profile = () => {
   const { user: authUser } = useAuth();
   const { data: profileData, isLoading: isProfileLoading, error: profileError } = useUserProfile();
+  const navigate = useNavigate();
   
   const [books, setBooks] = useState<UserBook[]>([]);
   const [activeTab, setActiveTab] = useState<string>('all');
@@ -48,11 +49,14 @@ const Profile = () => {
           // Map database status values to our enum types
           switch (item.status) {
             case 'reading':
+            case 'currently-reading':
+            case 'currently_reading':
               status = 'currently-reading';
               break;
             case 'to_read':
             case 'to read':
             case 'want_to_read':
+            case 'want-to-read':
               status = 'want-to-read';
               break;
             case 'completed':
@@ -60,7 +64,12 @@ const Profile = () => {
               status = 'finished';
               break;
             default:
-              status = 'want-to-read';
+              // Check if the status contains 'read' to determine if it's want-to-read or currently-reading
+              if (item.status && (item.status.includes('current') || item.status.includes('reading'))) {
+                status = 'currently-reading';
+              } else {
+                status = 'want-to-read';
+              }
           }
           
           return {
@@ -184,6 +193,16 @@ const Profile = () => {
               </span>
             ))}
           </div>
+          
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-2"
+            onClick={() => navigate(`/analytics?userId=${authUser?.id}`)}
+          >
+            <BarChart2 className="h-4 w-4" />
+            View Reading Analytics
+          </Button>
         </div>
       </div>
       
