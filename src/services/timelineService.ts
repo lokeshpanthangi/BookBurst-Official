@@ -21,7 +21,8 @@ export const useReadingTimeline = () => {
     queryFn: async () => {
       if (!user) throw new Error('User not authenticated');
       
-      const { data, error } = await supabase
+      // First get activity data from reading_activity table
+      const { data: activityData, error: activityError } = await supabase
         .from('reading_activity')
         .select(`
           *,
@@ -30,10 +31,23 @@ export const useReadingTimeline = () => {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
       
-      if (error) throw error;
+      if (activityError) throw activityError;
       
-      // Transform the data to match our TimelineEvent format
-      const timeline: TimelineEvent[] = data.map((activity: any) => {
+      // Then get finished books directly from user_books table
+      const { data: userBooksData, error: userBooksError } = await supabase
+        .from('user_books')
+        .select(`
+          *,
+          books(*)
+        `)
+        .eq('user_id', user.id)
+        .eq('status', 'finished')
+        .order('finish_date', { ascending: false });
+      
+      if (userBooksError) throw userBooksError;
+      
+      // Transform activity data to match our TimelineEvent format
+      const activityTimeline: TimelineEvent[] = activityData.map((activity: any) => {
         const book: UserBook = {
           id: activity.books.id,
           title: activity.books.title,
@@ -55,7 +69,51 @@ export const useReadingTimeline = () => {
         };
       });
       
-      return timeline;
+      // Transform user_books data to match our TimelineEvent format
+      const userBooksTimeline: TimelineEvent[] = userBooksData.map((userBook: any) => {
+        const book: UserBook = {
+          id: userBook.books.id,
+          title: userBook.books.title,
+          author: userBook.books.author,
+          coverImage: userBook.books.cover_image || '',
+          description: userBook.books.description || '',
+          status: 'finished',
+          finishDate: userBook.finish_date,
+          userRating: userBook.rating,
+          notes: userBook.notes,
+          userBookId: userBook.id
+        };
+        
+        return {
+          book,
+          date: userBook.finish_date || userBook.updated_at || userBook.created_at,
+          type: 'finished',
+          details: {
+            rating: userBook.rating,
+            notes: userBook.notes
+          },
+        };
+      });
+      
+      // Combine both timelines and filter out duplicates
+      const combinedTimeline = [...activityTimeline];
+      
+      // Add user books that aren't already in the activity timeline
+      userBooksTimeline.forEach(userBookEvent => {
+        // Check if this book is already in the timeline as a 'finished' event
+        const alreadyInTimeline = combinedTimeline.some(
+          event => event.book.id === userBookEvent.book.id && event.type === 'finished'
+        );
+        
+        if (!alreadyInTimeline) {
+          combinedTimeline.push(userBookEvent);
+        }
+      });
+      
+      // Sort by date, newest first
+      return combinedTimeline.sort((a, b) => {
+        return new Date(b.date).getTime() - new Date(a.date).getTime();
+      });
     },
     enabled: !!user,
   });

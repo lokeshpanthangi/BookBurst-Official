@@ -164,55 +164,16 @@ export const useUserPublicBooks = (userId: string) => {
   });
 };
 
-// Get user's all books (public and private) - only for followed users
+// Get user's all books (both public and private)
 export const useUserAllBooks = (userId: string) => {
   const { user: currentUser } = useAuth();
   
   return useQuery({
     queryKey: ['userAllBooks', userId],
     queryFn: async () => {
-      if (!userId || !currentUser) throw new Error('User ID and authentication required');
+      if (!userId) throw new Error('User ID is required');
       
-      // First check if current user follows this user
-      const { data: followData, error: followError } = await supabase
-        .from('follows')
-        .select('*')
-        .eq('follower_id', currentUser.id)
-        .eq('following_id', userId)
-        .maybeSingle();
-      
-      if (followError) throw followError;
-      
-      // If not following, only return public books
-      if (!followData) {
-        const { data, error } = await supabase
-          .from('user_books')
-          .select(`
-            *,
-            books(*)
-          `)
-          .eq('user_id', userId)
-          .eq('is_private', false);
-        
-        if (error) throw error;
-        
-        return {
-          books: data.map((item: any) => ({
-            ...item.books,
-            status: item.status,
-            startDate: item.start_date,
-            finishDate: item.finish_date,
-            userRating: item.rating,
-            progress: item.progress,
-            notes: item.notes,
-            userBookId: item.id,
-            is_private: item.is_private
-          })),
-          isFollowing: false
-        };
-      }
-      
-      // If following, return all books
+      // Get all books for the user
       const { data, error } = await supabase
         .from('user_books')
         .select(`
@@ -222,6 +183,12 @@ export const useUserAllBooks = (userId: string) => {
         .eq('user_id', userId);
       
       if (error) throw error;
+      
+      if (!data || data.length === 0) {
+        console.log('No books found for user:', userId);
+      } else {
+        console.log(`Found ${data.length} books for user:`, userId);
+      }
       
       return {
         books: data.map((item: any) => ({
@@ -235,10 +202,10 @@ export const useUserAllBooks = (userId: string) => {
           userBookId: item.id,
           is_private: item.is_private
         })),
-        isFollowing: true
+        isFollowing: false // We don't need this anymore but keep it for compatibility
       };
     },
-    enabled: !!userId && !!currentUser,
+    enabled: !!userId,
   });
 };
 

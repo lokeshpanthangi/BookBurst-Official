@@ -2,11 +2,7 @@ import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { 
   useUserById, 
-  useUserAllBooks, 
-  useFollowUser, 
-  useUnfollowUser,
-  useFollowersCount,
-  useFollowingCount
+  useUserAllBooks
 } from "@/services/communityService";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -15,7 +11,7 @@ import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { BookOpen, Star, UserCheck, UserMinus, Calendar, Users } from "lucide-react";
+import { BookOpen, Star, Calendar } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { formatDistanceToNow } from "date-fns";
 
@@ -24,10 +20,6 @@ const UserProfile = () => {
   const { user: currentUser } = useAuth();
   const { data: user, isLoading: isLoadingUser } = useUserById(userId || "");
   const { data: userBooksData, isLoading: isLoadingBooks } = useUserAllBooks(userId || "");
-  const { mutate: followUser } = useFollowUser();
-  const { mutate: unfollowUser } = useUnfollowUser();
-  const { data: followersCount } = useFollowersCount(userId || "");
-  const { data: followingCount } = useFollowingCount(userId || "");
   
   const [activeTab, setActiveTab] = useState<string>("all");
   
@@ -40,16 +32,7 @@ const UserProfile = () => {
     return true;
   });
 
-  // Handle follow/unfollow
-  const handleFollowToggle = () => {
-    if (!userId) return;
-    
-    if (userBooksData?.isFollowing) {
-      unfollowUser(userId);
-    } else {
-      followUser(userId);
-    }
-  };
+
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -75,41 +58,12 @@ const UserProfile = () => {
               <div className="flex-1 space-y-4">
                 <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
                   <h1 className="text-3xl font-bold">{user?.username}</h1>
-                  
-                  {currentUser && currentUser.id !== userId && (
-                    <Button 
-                      variant={userBooksData?.isFollowing ? "outline" : "default"}
-                      size="sm"
-                      className="w-fit"
-                      onClick={handleFollowToggle}
-                    >
-                      {userBooksData?.isFollowing ? (
-                        <>
-                          <UserMinus className="mr-2 h-4 w-4" />
-                          Unfollow
-                        </>
-                      ) : (
-                        <>
-                          <UserCheck className="mr-2 h-4 w-4" />
-                          Follow
-                        </>
-                      )}
-                    </Button>
-                  )}
                 </div>
                 
                 <div className="flex items-center gap-4 text-sm text-muted-foreground">
                   <div className="flex items-center">
                     <Calendar className="mr-1 h-4 w-4" />
                     Joined {formatDistanceToNow(new Date(user?.joinedDate || ""), { addSuffix: true })}
-                  </div>
-                  <div className="flex items-center">
-                    <Users className="mr-1 h-4 w-4" />
-                    {followersCount} {followersCount === 1 ? 'follower' : 'followers'}
-                  </div>
-                  <div className="flex items-center">
-                    <UserCheck className="mr-1 h-4 w-4" />
-                    {followingCount} following
                   </div>
                 </div>
                 
