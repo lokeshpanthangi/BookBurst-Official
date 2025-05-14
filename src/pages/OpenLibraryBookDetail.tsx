@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { UserBook } from "@/types/book";
@@ -13,134 +12,57 @@ import { ArrowLeft, Edit, Bookmark } from "lucide-react";
 import { motion } from "framer-motion";
 import ReadingProgressModal from "@/components/ReadingProgressModal";
 
-// Mock book data
-const mockBooks: UserBook[] = [
-  {
-    id: "1",
-    title: "The Midnight Library",
-    author: "Matt Haig",
-    coverImage: "https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=300",
-    description: "Between life and death there is a library, and within that library, the shelves go on forever. Every book provides a chance to try another life you could have lived. While we all wonder how our lives might have been, what if you had the chance to go to the library and see for yourself? Would any of these other lives truly be better? In The Midnight Library, Matt Haig's enchanting blockbuster novel, Nora Seed finds herself faced with this decision.",
-    status: "currently-reading",
-    progress: 45,
-    userRating: 4,
-    genres: ["Fiction", "Fantasy", "Self-Help"],
-    publishedDate: "2020-08-13",
-    publisher: "Canongate Books",
-    pageCount: 304,
-    isbn: "9781786892720",
-  },
-  {
-    id: "2",
-    title: "Atomic Habits",
-    author: "James Clear",
-    coverImage: "https://images.unsplash.com/photo-1535398089889-dd807df1dfaa?auto=format&fit=crop&q=80&w=300",
-    description: "No matter your goals, Atomic Habits offers a proven framework for improving--every day. James Clear, one of the world's leading experts on habit formation, reveals practical strategies that will teach you exactly how to form good habits, break bad ones, and master the tiny behaviors that lead to remarkable results.",
-    status: "finished",
-    finishDate: "2023-03-15",
-    userRating: 5,
-    genres: ["Self-Help", "Psychology", "Productivity"],
-    publishedDate: "2018-10-16",
-    publisher: "Avery",
-    pageCount: 320,
-    isbn: "9780735211292",
-  },
-];
-
-// Mock reviews data
-const mockReviews: Review[] = [
-  {
-    id: "101",
-    bookId: "1",
-    userId: "user1",
-    userName: "Jane Reader",
-    userAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=100",
-    rating: 4.5,
-    content: "I couldn't put this book down! The concept of a library containing books that represent different possible lives is both fascinating and thought-provoking. Matt Haig's writing is beautiful and the way he explores depression, regret, and hope is incredibly moving. Highly recommended for anyone who's ever wondered 'what if'.",
-    datePosted: "2023-05-10T14:30:00Z",
-    likes: 24,
-    spoiler: false,
-    recommended: true,
-  },
-  {
-    id: "102",
-    bookId: "1",
-    userId: "user2",
-    userName: "BookWorm42",
-    userAvatar: "",
-    rating: 3,
-    content: "While the premise is interesting, I found the execution a bit lacking. The characters felt somewhat flat to me, and the resolution was predictable. That said, it's a quick read with an uplifting message about appreciating the life you have.",
-    datePosted: "2023-04-22T09:15:00Z",
-    likes: 7,
-    spoiler: false,
-    recommended: false,
-  },
-];
-
-const BookDetail = () => {
-  // Get current URL path with useLocation instead of direct window access
-  const location = window.location.pathname;
-  const navigate = useNavigate();
-  
-  // Extract the OpenLibrary ID if present
-  const openLibraryMatch = location.match(/\/book\/works\/([^/]+)/);
-  const regularBookMatch = location.match(/\/book\/([^/]+)/);
-  
-  // Determine which ID to use
-  const bookId = openLibraryMatch ? openLibraryMatch[1] : 
-  (regularBookMatch ? regularBookMatch[1] : '');
+const OpenLibraryBookDetail = () => {
+  // Extract the workId from the URL
+  const { workId } = useParams<{ workId: string }>();
   const [book, setBook] = useState<UserBook | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [notes, setNotes] = useState("");
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [progressModalOpen, setProgressModalOpen] = useState(false);
   const [animateEntry, setAnimateEntry] = useState(true);
   
-
   useEffect(() => {
     // Simulate loading the book data
     setIsLoading(true);
     setAnimateEntry(true);
     
     setTimeout(() => {
-      // Handle both regular IDs and OpenLibrary work IDs
-      // For OpenLibrary work IDs, attempt to find a book with a similar ID pattern or create a new entry
-      let foundBook;
-      
-      if (bookId?.startsWith('OL')) {
-        // This is an OpenLibrary ID - we'll mock a book for it
-        // In a real app, you would fetch this from the OpenLibrary API
-        foundBook = {
-          id: bookId,
-          title: "The Great Novel",
+      // Create a mock book for OpenLibrary IDs
+      if (workId && workId.startsWith('OL')) {
+        const openLibraryBook: UserBook = {
+          id: workId,
+          title: `OpenLibrary Book ${workId}`,
           author: "Famous Author",
           coverImage: "https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=300",
-          description: "This book was loaded from OpenLibrary with ID " + bookId,
+          description: `This is a book from OpenLibrary with ID ${workId}. In a real application, this would fetch the actual book details from the OpenLibrary API.`,
           status: "want-to-read",
-          genres: ["Fiction", "Adventure"],
+          progress: 0,
+          genres: ["Fiction", "Literature"],
           publishedDate: "2020-01-01",
-          publisher: "Big Publishing House",
-          pageCount: 320,
+          publisher: "OpenLibrary Publishers",
+          pageCount: 300,
           isbn: "9781234567890"
         };
-      } else {
-        // Look for a book in our mock data
-        foundBook = mockBooks.find(b => b.id === bookId);
-      }
-      
-      if (foundBook) {
-        setBook(foundBook);
-        setNotes(foundBook.notes || "");
         
-        // Load reviews for this book
-        const bookReviews = mockReviews.filter(r => r.bookId === bookId);
-        setReviews(bookReviews);
+        setBook(openLibraryBook);
+        // No reviews for OpenLibrary books in this demo
+        setReviews([]);
+      } else {
+        // Handle not found
+        toast({
+          title: "Book not found",
+          description: "We couldn't find the book you're looking for.",
+          variant: "destructive"
+        });
+        navigate("/");
       }
       
       setIsLoading(false);
     }, 800);
-  }, [bookId]);
+  }, [workId, navigate, toast]);
   
   const handleStatusChange = (status: UserBook["status"]) => {
     if (!book) return;
@@ -299,40 +221,57 @@ const BookDetail = () => {
                     </div>
                   </div>
                 </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  {book.startDate ? `Started on ${book.startDate}` : "Start date not set"}
-                </p>
               </div>
-              <Button 
-                onClick={() => setProgressModalOpen(true)} 
-                variant="outline"
-                className="mt-4 md:mt-0 md:ml-4 transition-transform duration-300 hover:scale-105"
-              >
-                <Edit className="mr-2 h-4 w-4" /> Update Progress
-              </Button>
+              
+              <div className="mt-4 md:mt-0">
+                <Button 
+                  onClick={() => setProgressModalOpen(true)}
+                  className="transition-transform duration-300 hover:scale-105"
+                >
+                  <Edit className="mr-2 h-4 w-4" />
+                  Update Progress
+                </Button>
+              </div>
             </div>
           </motion.div>
         )}
         
-        <motion.div variants={childVariants}>
-          <Tabs defaultValue="details" className="animate-fade-in">
+        <motion.div
+          variants={childVariants}
+          className="mb-8"
+        >
+          <Tabs defaultValue="details" className="w-full">
             <TabsList className="mb-6">
               <TabsTrigger value="details">Details</TabsTrigger>
-              <TabsTrigger value="notes">Notes</TabsTrigger>
+              <TabsTrigger value="notes">Your Notes</TabsTrigger>
               <TabsTrigger value="reviews">Reviews</TabsTrigger>
             </TabsList>
             
-            <TabsContent value="details" className="space-y-6">
+            <TabsContent value="details">
               <motion.div 
-                className="bg-card border rounded-lg p-6"
+                className="bg-card border rounded-lg p-6 mb-6"
                 variants={childVariants}
                 initial="hidden"
                 animate="visible"
               >
-                <h2 className="font-playfair text-2xl font-semibold mb-4">About this book</h2>
-                <p className="text-muted-foreground mb-6">{book.description}</p>
+                <h2 className="font-playfair text-2xl font-semibold mb-4">Synopsis</h2>
+                <p className="whitespace-pre-line">{book.description}</p>
+              </motion.div>
+              
+              <motion.div 
+                className="bg-card border rounded-lg p-6 mb-6"
+                variants={childVariants}
+                initial="hidden"
+                animate="visible"
+              >
+                <h2 className="font-playfair text-2xl font-semibold mb-6">Book Details</h2>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div>
+                    <h3 className="font-medium text-sm text-muted-foreground">Author</h3>
+                    <p>{book.author}</p>
+                  </div>
+                  
                   {book.publishedDate && (
                     <div>
                       <h3 className="font-medium text-sm text-muted-foreground">Published</h3>
@@ -351,6 +290,13 @@ const BookDetail = () => {
                     <div>
                       <h3 className="font-medium text-sm text-muted-foreground">Pages</h3>
                       <p>{book.pageCount}</p>
+                    </div>
+                  )}
+                  
+                  {book.language && (
+                    <div>
+                      <h3 className="font-medium text-sm text-muted-foreground">Language</h3>
+                      <p>{book.language}</p>
                     </div>
                   )}
                   
@@ -438,7 +384,7 @@ const BookDetail = () => {
                     </div>
                   ) : (
                     <div className="text-center py-8">
-                      <p className="text-muted-foreground mb-4">No reviews yet</p>
+                      <p className="text-muted-foreground mb-4">No reviews yet for this OpenLibrary book</p>
                       <Button className="transition-all duration-300 hover:scale-105">
                         Write the first review
                       </Button>
@@ -461,4 +407,4 @@ const BookDetail = () => {
   );
 };
 
-export default BookDetail;
+export default OpenLibraryBookDetail;

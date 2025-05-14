@@ -36,8 +36,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { 
   fetchTrendingBooks, 
   fetchNewReleases, 
-  fetchRecommendedBooks, 
-  useSearchOpenLibrary 
+  fetchRecommendedBooks,
+  useSearchBooks
 } from "@/services/bookService";
 
 const ITEMS_PER_PAGE = 20;
@@ -67,15 +67,15 @@ const Explore = () => {
     queryFn: fetchRecommendedBooks,
   });
 
-  // Search books with pagination
-  const searchBooksQuery = useSearchOpenLibrary(searchQuery, searchPage, ITEMS_PER_PAGE);
+  // Search books with Google Books API
+  const searchBooksQuery = useSearchBooks(searchQuery, searchPage, ITEMS_PER_PAGE);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
       setActiveTab("search");
       setSearchPage(0);
-      queryClient.invalidateQueries({ queryKey: ['openLibrary'] });
+      queryClient.invalidateQueries({ queryKey: ['googleBooks'] });
     }
   };
 
@@ -291,10 +291,10 @@ const Explore = () => {
               renderLoadingState()
             ) : searchBooksQuery.isError ? (
               renderErrorAlert(searchBooksQuery.error)
-            ) : searchBooksQuery.data?.books?.length ? (
+            ) : searchBooksQuery.data?.items?.length > 0 ? (
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-8">
-                  {searchBooksQuery.data.books.map((book) => (
+                  {searchBooksQuery.data.items.map((book) => (
                     <ExploreCard
                       key={book.id}
                       book={book}
@@ -376,7 +376,7 @@ const Explore = () => {
                     setSearchQuery(genre);
                     setActiveTab("search");
                     setSearchPage(0);
-                    queryClient.invalidateQueries({ queryKey: ['openLibrary'] });
+                    queryClient.invalidateQueries({ queryKey: ['googleBooks'] });
                   }}
                 >
                   {genre}
@@ -399,7 +399,7 @@ const Explore = () => {
                     setSearchQuery(`author:${author}`);
                     setActiveTab("search");
                     setSearchPage(0);
-                    queryClient.invalidateQueries({ queryKey: ['openLibrary'] });
+                    queryClient.invalidateQueries({ queryKey: ['googleBooks'] });
                   }}
                 >
                   {author}
@@ -419,7 +419,7 @@ const Explore = () => {
                 setSearchQuery("bestseller");
                 setActiveTab("search");
                 setSearchPage(0);
-                queryClient.invalidateQueries({ queryKey: ['openLibrary'] });
+                queryClient.invalidateQueries({ queryKey: ['googleBooks'] });
               }}
             >
               Bestsellers
@@ -431,7 +431,7 @@ const Explore = () => {
                 setSearchQuery("award winner");
                 setActiveTab("search");
                 setSearchPage(0);
-                queryClient.invalidateQueries({ queryKey: ['openLibrary'] });
+                queryClient.invalidateQueries({ queryKey: ['googleBooks'] });
               }}
             >
               Award Winners
@@ -444,7 +444,7 @@ const Explore = () => {
                 setSearchQuery(`${currentYear}`);
                 setActiveTab("search");
                 setSearchPage(0);
-                queryClient.invalidateQueries({ queryKey: ['openLibrary'] });
+                queryClient.invalidateQueries({ queryKey: ['googleBooks'] });
               }}
             >
               This Year's Releases

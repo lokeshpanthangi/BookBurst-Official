@@ -1,7 +1,7 @@
 
 import { Book } from "@/types/book";
 
-const API_KEY = "AIzaSyDcGJIOArv2hy2bPWCfJwVXUeXgFc6xnso";
+const API_KEY = "AIzaSyBbS-GTBq4Mji-l6u-VOm8JsBj9j7trdIw";
 const BASE_URL = "https://www.googleapis.com/books/v1/volumes";
 
 // Convert Google Books API response to our Book type
@@ -106,8 +106,8 @@ export const fetchRecommendedBooks = async (preferredGenres?: string[]): Promise
 };
 
 // Search books by query with pagination
-export const searchBooks = async (query: string, page: number = 0, pageSize: number = 20): Promise<{books: Book[], totalItems: number}> => {
-  if (!query.trim()) return { books: [], totalItems: 0 };
+export const searchBooks = async (query: string, page: number = 0, pageSize: number = 20): Promise<{items: Book[], totalItems: number}> => {
+  if (!query.trim()) return { items: [], totalItems: 0 };
   
   try {
     const startIndex = page * pageSize;
@@ -116,17 +116,17 @@ export const searchBooks = async (query: string, page: number = 0, pageSize: num
       `${BASE_URL}?q=${encodeURIComponent(query)}&startIndex=${startIndex}&maxResults=${pageSize}&key=${API_KEY}`
     );
     
-    if (!data.items) return { books: [], totalItems: data.totalItems || 0 };
+    if (!data.items) return { items: [], totalItems: data.totalItems || 0 };
     
-    const books = data.items.map(mapToBook);
+    const items = data.items.map(mapToBook);
     
     return {
-      books,
-      totalItems: data.totalItems || books.length
+      items,
+      totalItems: data.totalItems || items.length
     };
   } catch (error) {
     console.error("Error searching books:", error);
-    return { books: [], totalItems: 0 };
+    return { items: [], totalItems: 0 };
   }
 };
 

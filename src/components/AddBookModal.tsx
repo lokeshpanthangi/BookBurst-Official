@@ -46,6 +46,7 @@ const AddBookModal = ({ open, onOpenChange, onAddBook }: AddBookModalProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Book[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   
   const [newBook, setNewBook] = useState<Partial<Book>>({
     title: "",
@@ -57,12 +58,14 @@ const AddBookModal = ({ open, onOpenChange, onAddBook }: AddBookModalProps) => {
     publisher: "",
     pageCount: 0,
     isbn: "",
+    language: "en",
   });
   
   const [status, setStatus] = useState<'want-to-read' | 'currently-reading' | 'finished'>('want-to-read');
   const [readingProgress, setReadingProgress] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
+  const [addError, setAddError] = useState<string | null>(null);
   
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -94,50 +97,41 @@ const AddBookModal = ({ open, onOpenChange, onAddBook }: AddBookModalProps) => {
   };
   
   const searchBooks = async () => {
-    if (!searchQuery.trim()) {
-      toast({
-        title: "Search query required",
-        description: "Please enter a title or author to search",
-        variant: "destructive"
-      });
-      return;
-    }
+    if (!searchQuery.trim()) return;
     
     setIsSearching(true);
+    setSearchResults([]);
     
     try {
-      // Using Open Library search API
-      const response = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(searchQuery)}&limit=10`);
+      // Use Google Books API instead of OpenLibrary
+      const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(searchQuery)}&maxResults=10&key=AIzaSyBbS-GTBq4Mji-l6u-VOm8JsBj9j7trdIw`);
       
       if (!response.ok) {
-        throw new Error('Failed to fetch from Open Library');
+        throw new Error(`API error: ${response.status}`);
       }
       
       const data = await response.json();
       
-      // Map the OpenLibrary data to our Book format
-      const books: Book[] = data.docs.map((book: any) => {
-        const coverID = book.cover_i;
-        const coverUrl = coverID 
-          ? `https://covers.openlibrary.org/b/id/${coverID}-M.jpg`
-          : 'https://images.unsplash.com/photo-1589998059171-988d887df646?auto=format&fit=crop&q=80&w=300';
+      // Map the Google Books data to our Book format
+      const books = data.items ? data.items.map((item: any) => {
+        const volumeInfo = item.volumeInfo;
         
         return {
-          id: book.key || `ol-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-          title: book.title || 'Unknown Title',
-          author: book.author_name ? book.author_name.join(', ') : 'Unknown Author',
-          coverImage: coverUrl,
-          description: book.description || '',
-          publishedDate: book.first_publish_year ? book.first_publish_year.toString() : '',
-          publisher: book.publisher ? book.publisher[0] : '',
-          pageCount: book.number_of_pages_median || 0,
-          isbn: book.isbn ? book.isbn[0] : '',
-          language: book.language ? book.language[0] : '',
-          genres: book.subject ? book.subject.slice(0, 5) : [],
-          averageRating: 0,
-          ratingsCount: 0,
+          id: item.id,
+          title: volumeInfo.title || 'Unknown Title',
+          author: volumeInfo.authors ? volumeInfo.authors.join(', ') : 'Unknown Author',
+          coverImage: volumeInfo.imageLinks?.thumbnail || 'https://images.unsplash.com/photo-1589998059171-988d887df646?auto=format&fit=crop&q=80&w=300',
+          description: volumeInfo.description || 'No description available',
+          publishedDate: volumeInfo.publishedDate || '',
+          publisher: volumeInfo.publisher || '',
+          pageCount: volumeInfo.pageCount || 0,
+          isbn: volumeInfo.industryIdentifiers?.[0]?.identifier || '',
+          language: volumeInfo.language || '',
+          genres: volumeInfo.categories || [],
+          averageRating: volumeInfo.averageRating || 0,
+          ratingsCount: volumeInfo.ratingsCount || 0
         };
-      });
+      }) : [];
       
       setSearchResults(books);
       setIsSearching(false);
@@ -172,43 +166,120 @@ const AddBookModal = ({ open, onOpenChange, onAddBook }: AddBookModalProps) => {
     }
     
     setIsSubmitting(true);
+    setAddError(null);
     
     try {
-      // Create a book object for database
-      const book: Book = {
-        id: `book-${Date.now()}`,
-        title: newBook.title!,
-        author: newBook.author!,
-        coverImage: newBook.coverImage || "https://images.unsplash.com/photo-1589998059171-988d887df646?auto=format&fit=crop&q=80&w=300",
+      // Step 1: First, add the book to the books table
+      const bookData = {
+        title: newBook.title,
+        author: newBook.author,
+        cover_image: newBook.coverImage || "https://images.unsplash.com/photo-1589998059171-988d887df646?auto=format&fit=crop&q=80&w=300",
         description: newBook.description || "",
-        genres: selectedGenres,
-        publishedDate: newBook.publishedDate,
-        publisher: newBook.publisher,
-        pageCount: newBook.pageCount || 0,
-        isbn: newBook.isbn,
-        averageRating: 0,
-        ratingsCount: 0,
+        published_date: newBook.publishedDate || null,
+        publisher: newBook.publisher || null,
+        page_count: newBook.pageCount || null,
+        isbn: newBook.isbn || null,
+        language: newBook.language || 'en',
+        average_rating: 0,
+        ratings_count: 0
       };
       
-      // First, add the book to the database
-      const addBookResponse = await fetch('/api/books', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(book),
-      });
+      // Insert the book into the books table
+      const { data: bookResult, error: bookError } = await supabase
+        .from('books')
+        .insert(bookData)
+        .select()
+        .single();
       
-      if (!addBookResponse.ok) {
-        throw new Error('Failed to add book to database');
+      if (bookError) {
+        console.error('Error adding book:', bookError);
+        throw new Error(`Failed to add book: ${bookError.message}`);
       }
       
-      // Add book to user's shelf with selected status
-      onAddBook({
-        ...book,
-        status,
-        progress: status === 'currently-reading' ? readingProgress : undefined,
-      });
+      if (!bookResult) {
+        throw new Error('Failed to add book: No data returned');
+      }
+      
+      // Step 2: Add genres to the book_genres table if any are selected
+      if (selectedGenres.length > 0) {
+        // First, get or create genre IDs
+        for (const genreName of selectedGenres) {
+          // Check if genre exists
+          const { data: existingGenre } = await supabase
+            .from('genres')
+            .select('id')
+            .eq('name', genreName)
+            .single();
+          
+          let genreId;
+          
+          if (existingGenre) {
+            genreId = existingGenre.id;
+          } else {
+            // Create new genre
+            const { data: newGenre, error: genreError } = await supabase
+              .from('genres')
+              .insert({ name: genreName })
+              .select()
+              .single();
+              
+            if (genreError) {
+              console.error(`Error creating genre ${genreName}:`, genreError);
+              continue; // Skip this genre but continue with others
+            }
+            
+            genreId = newGenre?.id;
+          }
+          
+          if (genreId) {
+            // Link book to genre
+            await supabase
+              .from('book_genres')
+              .insert({
+                book_id: bookResult.id,
+                genre_id: genreId
+              });
+          }
+        }
+      }
+      
+      // Step 3: Add book to user's collection with the selected status
+      const { data: userBookData, error: userBookError } = await supabase
+        .from('user_books')
+        .insert({
+          book_id: bookResult.id,
+          status: status,
+          progress: status === 'currently-reading' ? readingProgress : 0,
+          start_date: status === 'currently-reading' || status === 'finished' ? new Date().toISOString() : null,
+          finish_date: status === 'finished' ? new Date().toISOString() : null
+        })
+        .select()
+        .single();
+      
+      if (userBookError) {
+        console.error('Error adding user book:', userBookError);
+        throw new Error(`Failed to add book to your collection: ${userBookError.message}`);
+      }
+      
+      // Map the database book to our Book type for the UI
+      const book: Book = {
+        id: bookResult.id,
+        title: bookResult.title,
+        author: bookResult.author,
+        coverImage: bookResult.cover_image,
+        description: bookResult.description,
+        publishedDate: bookResult.published_date,
+        publisher: bookResult.publisher,
+        pageCount: bookResult.page_count,
+        isbn: bookResult.isbn,
+        language: bookResult.language,
+        genres: selectedGenres,
+        averageRating: 0,
+        ratingsCount: 0
+      };
+      
+      // Notify parent component
+      onAddBook(book);
       
       toast({
         title: "Book added",
@@ -226,12 +297,14 @@ const AddBookModal = ({ open, onOpenChange, onAddBook }: AddBookModalProps) => {
         publisher: "",
         pageCount: 0,
         isbn: "",
+        language: "en"
       });
       setSelectedGenres([]);
       setStatus('want-to-read');
       setReadingProgress(0);
       onOpenChange(false);
     } catch (error: any) {
+      setAddError(error.message);
       toast({
         title: "Error adding book",
         description: error.message || "Failed to add book. Please try again.",
@@ -272,19 +345,56 @@ const AddBookModal = ({ open, onOpenChange, onAddBook }: AddBookModalProps) => {
         </div>
         
         {step === 'search' ? (
-          <div className="space-y-4 animate-fade-in">
-            <div className="flex gap-2">
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2">
               <Input
-                placeholder="Search by title, author, or ISBN..."
+                placeholder="Search for books by title or author"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="flex-1"
                 onKeyDown={(e) => e.key === 'Enter' && searchBooks()}
               />
-              <Button onClick={searchBooks} disabled={isSearching}>
+              <Button type="button" onClick={searchBooks} disabled={isSearching}>
                 {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
               </Button>
             </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="search-status" className="text-right">
+                Reading Status
+              </Label>
+              <Select
+                value={status}
+                onValueChange={(value) => setStatus(value as 'want-to-read' | 'currently-reading' | 'finished')}
+              >
+                <SelectTrigger id="search-status">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="want-to-read">Want to Read</SelectItem>
+                  <SelectItem value="currently-reading">Currently Reading</SelectItem>
+                  <SelectItem value="finished">Finished</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {status === 'currently-reading' && (
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <Label htmlFor="search-readingProgress" className="text-right">
+                    Reading Progress
+                  </Label>
+                  <span className="text-sm text-muted-foreground">{readingProgress}%</span>
+                </div>
+                <Slider
+                  id="search-readingProgress"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={[readingProgress]}
+                  onValueChange={(values) => setReadingProgress(values[0])}
+                />
+              </div>
+            )}
             
             {isSearching ? (
               <div className="py-8 text-center">
@@ -522,6 +632,44 @@ const AddBookModal = ({ open, onOpenChange, onAddBook }: AddBookModalProps) => {
                 placeholder="URL to cover image"
               />
             </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="status" className="text-right">
+                Reading Status
+              </Label>
+              <Select
+                value={status}
+                onValueChange={(value) => setStatus(value as 'want-to-read' | 'currently-reading' | 'finished')}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="want-to-read">Want to Read</SelectItem>
+                  <SelectItem value="currently-reading">Currently Reading</SelectItem>
+                  <SelectItem value="finished">Finished</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {status === 'currently-reading' && (
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <Label htmlFor="readingProgress" className="text-right">
+                    Reading Progress
+                  </Label>
+                  <span className="text-sm text-muted-foreground">{readingProgress}%</span>
+                </div>
+                <Slider
+                  id="readingProgress"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={[readingProgress]}
+                  onValueChange={(values) => setReadingProgress(values[0])}
+                />
+              </div>
+            )}
           </div>
         )}
         

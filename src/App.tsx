@@ -9,9 +9,10 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
-import Navigation from "./components/Navigation";
+import Navigation from "@/components/Navigation";
 import Bookshelf from "./pages/Bookshelf";
 import BookDetail from "./pages/BookDetail";
+import GoogleBookDetail from "./pages/GoogleBookDetail";
 import Explore from "./pages/Explore";
 import Timeline from "./pages/Timeline";
 import Profile from "./pages/Profile";
@@ -37,7 +38,7 @@ const App = () => (
                     <Bookshelf />
                   </ProtectedRoute>
                 } />
-                <Route path="/book/:id" element={<BookDetail />} />
+                <Route path="/book/:id" element={<GoogleBookDetail />} />
                 <Route path="/explore" element={<Explore />} />
                 <Route path="/timeline" element={
                   <ProtectedRoute>

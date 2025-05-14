@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Json } from "@/integrations/supabase/types";
+import { fetchTrendingBooks as fetchGoogleTrendingBooks, fetchNewReleases as fetchGoogleNewReleases, fetchRecommendedBooks as fetchGoogleRecommendedBooks, searchBooks as searchGoogleBooks } from "@/services/googleBooksService";
 
 // Map database fields to our Book type
 const mapDbBookToBook = (item: any): Book => ({
@@ -174,55 +175,24 @@ export const useUserBooks = (filters: BookshelfFilters = {}, page: number = 0, p
   });
 };
 
-// Search Open Library API
-export const useSearchOpenLibrary = (query: string, page: number = 0, pageSize: number = 20) => {
+// Search Google Books API
+export const useSearchBooks = (query: string, page: number = 0, pageSize: number = 20) => {
   return useQuery({
-    queryKey: ['openLibrary', query, page, pageSize],
+    queryKey: ['googleBooks', query, page, pageSize],
     queryFn: async () => {
-      if (!query.trim()) return { books: [], totalItems: 0 };
-      
-      // Calculate offset for pagination
-      const offset = page * pageSize;
-      
-      // OpenLibrary search API
-      const response = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=${pageSize}&offset=${offset}`);
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch books from Open Library');
+      if (!query.trim()) {
+        return { items: [], totalItems: 0 };
       }
       
-      const data = await response.json();
-      
-      // Map the OpenLibrary data to our Book format
-      const books: Book[] = data.docs.map((book: any) => {
-        const coverID = book.cover_i;
-        const coverUrl = coverID 
-          ? `https://covers.openlibrary.org/b/id/${coverID}-M.jpg`
-          : 'https://images.unsplash.com/photo-1589998059171-988d887df646?auto=format&fit=crop&q=80&w=300';
-        
-        return {
-          id: book.key || `ol-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-          title: book.title || 'Unknown Title',
-          author: book.author_name ? book.author_name.join(', ') : 'Unknown Author',
-          coverImage: coverUrl,
-          description: book.description || '',
-          publishedDate: book.first_publish_year ? book.first_publish_year.toString() : '',
-          publisher: book.publisher ? book.publisher[0] : '',
-          pageCount: book.number_of_pages_median || 0,
-          isbn: book.isbn ? book.isbn[0] : '',
-          language: book.language ? book.language[0] : '',
-          genres: book.subject ? book.subject.slice(0, 5) : [],
-          averageRating: 0,
-          ratingsCount: 0,
-        };
-      });
-      
-      return {
-        books,
-        totalItems: data.numFound
-      };
+      try {
+        // Use the Google Books search function
+        return searchGoogleBooks(query, page, pageSize);
+      } catch (error) {
+        console.error('Error searching books:', error);
+        throw error;
+      }
     },
-    enabled: !!query.trim(),
+    enabled: query.trim().length > 0
   });
 };
 
@@ -244,6 +214,8 @@ export const getBooksByGenre = async (genreId: string) => {
 
 // Get books by genres - Fixed the query syntax
 export const getBooksByGenres = async (genreIds: string[]) => {
+  if (!genreIds.length) return [];
+  
   const { data } = await supabase
     .from('book_genres')
     .select('book_id')
@@ -252,120 +224,19 @@ export const getBooksByGenres = async (genreIds: string[]) => {
   return data ? data.map(bg => bg.book_id) : [];
 };
 
-// Fetch trending books from Open Library
+// Fetch trending books from Google Books API
 export const fetchTrendingBooks = async (): Promise<Book[]> => {
-  try {
-    const response = await fetch('https://openlibrary.org/trending/daily.json');
-    if (!response.ok) {
-      throw new Error('Failed to fetch trending books');
-    }
-    
-    const data = await response.json();
-    
-    return data.works.slice(0, 12).map((book: any) => {
-      const coverID = book.cover_i || book.cover_id;
-      const coverUrl = coverID 
-        ? `https://covers.openlibrary.org/b/id/${coverID}-M.jpg`
-        : 'https://images.unsplash.com/photo-1589998059171-988d887df646?auto=format&fit=crop&q=80&w=300';
-      
-      return {
-        id: book.key,
-        title: book.title,
-        author: book.author_name ? book.author_name.join(', ') : 'Unknown Author',
-        coverImage: coverUrl,
-        description: book.description || '',
-        publishedDate: book.first_publish_year ? book.first_publish_year.toString() : '',
-        publisher: '',
-        pageCount: 0,
-        isbn: '',
-        language: '',
-        genres: [],
-        averageRating: 0,
-        ratingsCount: 0,
-      };
-    });
-  } catch (error) {
-    console.error('Error fetching trending books:', error);
-    return [];
-  }
+  return fetchGoogleTrendingBooks();
 };
 
-// Fetch new releases from Open Library
+// Fetch new releases from Google Books API
 export const fetchNewReleases = async (): Promise<Book[]> => {
-  try {
-    // Using the Open Library recent endpoint
-    const response = await fetch('https://openlibrary.org/subjects/new_books.json?limit=12');
-    if (!response.ok) {
-      throw new Error('Failed to fetch new releases');
-    }
-    
-    const data = await response.json();
-    
-    return data.works.map((book: any) => {
-      const coverID = book.cover_id;
-      const coverUrl = coverID 
-        ? `https://covers.openlibrary.org/b/id/${coverID}-M.jpg`
-        : 'https://images.unsplash.com/photo-1589998059171-988d887df646?auto=format&fit=crop&q=80&w=300';
-      
-      return {
-        id: book.key,
-        title: book.title,
-        author: book.authors ? book.authors.map((a: any) => a.name).join(', ') : 'Unknown Author',
-        coverImage: coverUrl,
-        description: '',
-        publishedDate: book.first_publish_year ? book.first_publish_year.toString() : '',
-        publisher: '',
-        pageCount: 0,
-        isbn: '',
-        language: '',
-        genres: [],
-        averageRating: 0,
-        ratingsCount: 0,
-      };
-    });
-  } catch (error) {
-    console.error('Error fetching new releases:', error);
-    return [];
-  }
+  return fetchGoogleNewReleases();
 };
 
-// Fetch recommended books from Open Library
-export const fetchRecommendedBooks = async (): Promise<Book[]> => {
-  try {
-    // Using a popular subject as a proxy for recommendations
-    const response = await fetch('https://openlibrary.org/subjects/bestseller.json?limit=12');
-    if (!response.ok) {
-      throw new Error('Failed to fetch recommended books');
-    }
-    
-    const data = await response.json();
-    
-    return data.works.map((book: any) => {
-      const coverID = book.cover_id;
-      const coverUrl = coverID 
-        ? `https://covers.openlibrary.org/b/id/${coverID}-M.jpg`
-        : 'https://images.unsplash.com/photo-1589998059171-988d887df646?auto=format&fit=crop&q=80&w=300';
-      
-      return {
-        id: book.key,
-        title: book.title,
-        author: book.authors ? book.authors.map((a: any) => a.name).join(', ') : 'Unknown Author',
-        coverImage: coverUrl,
-        description: '',
-        publishedDate: book.first_publish_year ? book.first_publish_year.toString() : '',
-        publisher: '',
-        pageCount: 0,
-        isbn: '',
-        language: '',
-        genres: [],
-        averageRating: 0,
-        ratingsCount: 0,
-      };
-    });
-  } catch (error) {
-    console.error('Error fetching recommended books:', error);
-    return [];
-  }
+// Fetch recommended books from Google Books API
+export const fetchRecommendedBooks = async (preferredGenres?: string[]): Promise<Book[]> => {
+  return fetchGoogleRecommendedBooks(preferredGenres);
 };
 
 // Order books by a given sort
