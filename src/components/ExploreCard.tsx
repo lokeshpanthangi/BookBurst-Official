@@ -5,7 +5,6 @@ import BookCover from "./BookCover";
 import StarRating from "./StarRating";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, BookOpen } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 
 interface ExploreCardProps {
   book: Book;
@@ -13,17 +12,6 @@ interface ExploreCardProps {
 }
 
 const ExploreCard = ({ book, onAddToShelf }: ExploreCardProps) => {
-  const { toast } = useToast();
-  
-  const handleAddToShelf = () => {
-    onAddToShelf?.();
-    toast({
-      title: "Added to your shelf",
-      description: `${book.title} has been added to your "Want to Read" shelf.`,
-      duration: 3000,
-    });
-  };
-  
   return (
     <div className="book-card hover-scale">
       <div className="book-card-image">
@@ -50,7 +38,7 @@ const ExploreCard = ({ book, onAddToShelf }: ExploreCardProps) => {
               size="sm"
             />
             <span className="text-xs text-muted-foreground">
-              {book.averageRating.toFixed(1)} ({book.ratingsCount})
+              {book.averageRating.toFixed(1)} ({book.ratingsCount || 0})
             </span>
           </div>
         ) : (
@@ -65,7 +53,7 @@ const ExploreCard = ({ book, onAddToShelf }: ExploreCardProps) => {
             </Link>
           </Button>
           
-          <Button size="sm" onClick={handleAddToShelf}>
+          <Button size="sm" onClick={onAddToShelf}>
             <PlusCircle className="mr-1 h-3 w-3" />
             Add
           </Button>
