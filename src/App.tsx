@@ -12,6 +12,7 @@ import NotFound from "./pages/NotFound";
 import Navigation from "@/components/Navigation";
 import Bookshelf from "./pages/Bookshelf";
 import BookDetail from "./pages/BookDetail";
+import UserBookDetail from "./pages/UserBookDetail";
 import GoogleBookDetail from "./pages/GoogleBookDetail";
 import Explore from "./pages/Explore";
 import Timeline from "./pages/Timeline";
@@ -38,7 +39,8 @@ const App = () => (
                     <Bookshelf />
                   </ProtectedRoute>
                 } />
-                <Route path="/book/:id" element={<GoogleBookDetail />} />
+                <Route path="/book/:id" element={<UserBookDetail />} />
+                <Route path="/google-book/:id" element={<GoogleBookDetail />} />
                 <Route path="/explore" element={<Explore />} />
                 <Route path="/timeline" element={
                   <ProtectedRoute>

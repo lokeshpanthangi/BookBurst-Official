@@ -78,9 +78,10 @@ const Bookshelf = () => {
     setCurrentPage(0);
   }, [activeTab]);
 
-  const handleBookClick = (bookId: string) => {
-    // Navigate to the specific book's detail page
-    navigate(`/book/${bookId}`);
+  const handleBookClick = (book: any) => {
+    // For books from the user's bookshelf, we want to navigate to the book details page
+    // using the book's original ID, not the userBookId
+    navigate(`/book/${book.id}`);
   };
 
   const handleAddBook = (book: any) => {
@@ -218,7 +219,7 @@ const Bookshelf = () => {
                 <motion.div 
                   key={book.id}
                   variants={bookVariants}
-                  onClick={() => handleBookClick(book.id)}
+                  onClick={() => handleBookClick(book)}
                   className="cursor-pointer transition-transform duration-300"
                   whileHover={{ y: -5 }}
                 >

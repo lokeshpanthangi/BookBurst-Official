@@ -12,9 +12,9 @@ import ReadingProgressModal from "@/components/ReadingProgressModal";
 import AddToBookshelfModal from "@/components/AddToBookshelfModal";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useUpdateUserBook, useAddUserBook, useBook } from "@/services/bookService";
+import { useUpdateUserBook, useAddUserBook, useBook, useUserBookDetails } from "@/services/bookService";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Rating } from "@/components/Rating";
+import { Rating } from "../components/Rating";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,6 +26,7 @@ const BookDetail = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   
+  // Using any type to accommodate the database structure which might have additional fields
   const [userBook, setUserBook] = useState<any>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isInCollection, setIsInCollection] = useState(false);
@@ -39,8 +40,12 @@ const BookDetail = () => {
   const [userRating, setUserRating] = useState(0);
   const [animateEntry, setAnimateEntry] = useState(true);
   
-  // Use the useBook hook to fetch real book data
-  const { data: book, isLoading, isError } = useBook(id || "");
+  // Use a simpler approach to fetch book data
+  const { data: book, isLoading: bookLoading, isError: bookError } = useBook(id || "");
+  
+  // Track loading state
+  const [isLoading, setIsLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
   
   const updateUserBook = useUpdateUserBook();
   const addUserBook = useAddUserBook();
@@ -49,70 +54,86 @@ const BookDetail = () => {
     // Set animation entry state
     setAnimateEntry(true);
     
-    // Check if this book is in the user's collection
-    const checkUserCollection = async () => {
-      if (!id || !user) return;
-      
-      try {
-        const { data: userBookData, error: userBookError } = await supabase
-          .from('user_books')
-          .select('*')
-          .eq('book_id', id)
-          .eq('user_id', user.id)
-          .maybeSingle();
-        
-        if (userBookError) {
-          console.error('Error checking user book:', userBookError);
-        } else if (userBookData) {
-          setUserBook(userBookData);
-          setIsInCollection(true);
-          setNotes(userBookData.notes || '');
-          setIsPublic(userBookData.is_public !== false); // Default to true if not set
-          if (userBookData.rating) setUserRating(userBookData.rating);
-        }
-      } catch (error) {
-        console.error('Error checking user collection:', error);
-      }
-    };
+    // Update loading and error states based on book query
+    setIsLoading(bookLoading);
+    setIsError(bookError);
     
-    // Fetch reviews for this book
-    const fetchReviews = async () => {
-      if (!id) return;
-      
-      try {
-        const { data: reviewsData, error: reviewsError } = await supabase
-          .from('reviews')
-          .select('*, profiles(*)')
-          .eq('book_id', id)
-          .order('created_at', { ascending: false });
-        
-        if (reviewsError) {
-          console.error('Error fetching reviews:', reviewsError);
-        } else if (reviewsData) {
-          // Format the reviews
-          const formattedReviews = reviewsData.map(review => ({
-            id: review.id,
-            bookId: review.book_id,
-            userId: review.user_id,
-            userName: review.profiles?.display_name || 'Anonymous',
-            userAvatar: review.profiles?.avatar_url || '',
-            rating: review.rating,
-            content: review.content,
-            datePosted: review.created_at,
-            likes: review.likes || 0,
-            spoiler: review.spoiler || false,
-            recommended: review.recommended || false
-          }));
+    // If we have a book and user, check if it's in the user's collection
+    if (book && user && !bookLoading) {
+      const checkUserCollection = async () => {
+        try {
+          console.log('Checking if book is in user collection:', book.id);
           
-          setReviews(formattedReviews);
+          const { data: userBookData, error: userBookError } = await supabase
+            .from('user_books')
+            .select('*')
+            .eq('book_id', book.id)
+            .eq('user_id', user.id)
+            .maybeSingle();
+          
+          if (userBookError) {
+            console.error('Error checking user book:', userBookError);
+          } else if (userBookData) {
+            console.log('Found book in user collection:', userBookData);
+            setUserBook(userBookData);
+            setIsInCollection(true);
+            setNotes(userBookData.notes || '');
+            setIsPublic((userBookData as any)?.is_public ?? true);
+            if (userBookData.rating) setUserRating(userBookData.rating);
+          } else {
+            console.log('Book not in user collection');
+            setIsInCollection(false);
+          }
+        } catch (error) {
+          console.error('Error checking user collection:', error);
         }
-      } catch (error) {
-        console.error('Error fetching reviews:', error);
-      }
-    };
+      };
+      
+      checkUserCollection();
+      
+      // Fetch reviews for this book
+      const fetchReviews = async () => {
+        try {
+          console.log('Fetching reviews for book:', book.id);
+          
+          const { data: reviewsData, error: reviewsError } = await supabase
+            .from('reviews')
+            .select('*, profiles(*)')
+            .eq('book_id', book.id)
+            .order('date_posted', { ascending: false });
+          
+          if (reviewsError) {
+            console.error('Error fetching reviews:', reviewsError);
+          } else if (reviewsData) {
+            console.log('Found reviews:', reviewsData.length);
+            
+            // Format the reviews
+            const formattedReviews = reviewsData.map(review => ({
+              id: review.id,
+              bookId: review.book_id,
+              userId: review.user_id,
+              userName: review.profiles?.username || 'Anonymous',
+              userAvatar: review.profiles?.avatar_url || '',
+              rating: review.rating,
+              content: review.content,
+              datePosted: review.date_posted || new Date().toISOString(),
+              likes: review.likes || 0,
+              spoiler: review.spoiler || false,
+              recommended: review.recommended || false
+            }));
+            
+            setReviews(formattedReviews);
+          }
+        } catch (error) {
+          console.error('Error fetching reviews:', error);
+        }
+      };
+      
+      fetchReviews();
+    }
     
     // If there's an error with the book data, show a toast
-    if (isError) {
+    if (bookError) {
       toast({
         title: 'Error',
         description: 'Failed to load book details',
@@ -120,8 +141,8 @@ const BookDetail = () => {
       });
     }
     
-    // If the book doesn't exist, navigate back to bookshelf
-    if (!isLoading && !book && !isError) {
+    // If the book doesn't exist and loading is complete, navigate back to bookshelf
+    if (!bookLoading && !book && !bookError) {
       toast({
         title: 'Book not found',
         description: 'The requested book could not be found',
@@ -129,10 +150,7 @@ const BookDetail = () => {
       });
       navigate('/bookshelf');
     }
-    
-    checkUserCollection();
-    fetchReviews();
-  }, [id, user, book, isLoading, isError, navigate, toast]);
+  }, [id, user, book, bookLoading, bookError, navigate, toast]);
 
   const openAddToBookshelfModal = () => {
     if (!book || !user) return;
@@ -177,8 +195,9 @@ const BookDetail = () => {
         setUserBook(data);
         setIsInCollection(true);
         setNotes(data.notes || '');
-        if (data.is_public !== undefined) {
-          setIsPublic(data.is_public);
+        // Using type assertion since the TypeScript type doesn't include is_public
+        if ((data as any).is_public !== undefined) {
+          setIsPublic((data as any).is_public);
         }
         if (data.rating) setUserRating(data.rating);
         
@@ -422,20 +441,19 @@ const BookDetail = () => {
     if (!book || !user || !newReview || reviewRating === 0) return;
     
     try {
-      const review = {
+      const reviewData = {
         book_id: book.id,
         user_id: user.id,
         content: newReview,
         rating: reviewRating,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        date_posted: new Date().toISOString(),
         spoiler: false,
         recommended: true
       };
       
       const { data, error } = await supabase
         .from('reviews')
-        .insert(review)
+        .insert(reviewData)
         .select('*, profiles(*)')
         .single();
       
@@ -446,11 +464,11 @@ const BookDetail = () => {
           id: data.id,
           bookId: data.book_id,
           userId: data.user_id,
-          userName: data.profiles?.display_name || 'You',
+          userName: data.profiles?.username || 'You',
           userAvatar: data.profiles?.avatar_url || '',
           rating: data.rating,
           content: data.content,
-          datePosted: data.created_at,
+          datePosted: data.date_posted || new Date().toISOString(),
           likes: 0,
           spoiler: false,
           recommended: true
@@ -465,11 +483,6 @@ const BookDetail = () => {
         if (!userBook?.rating && userBook) {
           handleRatingChange(reviewRating);
         }
-        
-        toast({
-          title: 'Review submitted',
-          description: 'Your review has been posted'
-        });
       }
     } catch (error) {
       console.error('Error submitting review:', error);
@@ -518,6 +531,9 @@ const BookDetail = () => {
     visible: { opacity: 1, transition: { duration: 0.5 } }
   };
 
+  // Add console logs for debugging
+  console.log('BookDetail render:', { id, book, userBook, bookLoading, bookError, isLoading, isError });
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-5xl">
       <Button
@@ -543,6 +559,14 @@ const BookDetail = () => {
               </div>
             </div>
           </div>
+        </div>
+      ) : isError ? (
+        <div className="text-center py-12">
+          <h2 className="text-2xl font-bold">Error Loading Book</h2>
+          <p className="text-muted-foreground mt-2">There was an error loading the book details. Please try again.</p>
+          <Button onClick={() => navigate('/bookshelf')} className="mt-4">
+            Go to My Bookshelf
+          </Button>
         </div>
       ) : book ? (
         <motion.div
@@ -742,8 +766,8 @@ const BookDetail = () => {
                   <div>
                     <h3 className="text-lg font-medium mb-2">Categories</h3>
                     <div className="flex flex-wrap gap-2">
-                      {book.categories?.map((category, index) => (
-                        <Badge key={index} variant="outline">{category}</Badge>
+                      {book.genres?.map((genre, index) => (
+                        <Badge key={index} variant="outline">{genre}</Badge>
                       )) || <span className="text-muted-foreground">No categories available</span>}
                     </div>
                   </div>

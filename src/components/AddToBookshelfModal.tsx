@@ -30,14 +30,14 @@ import {
 } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
-import { Rating } from "@/components/Rating";
+import { Rating } from "./Rating";
 import { Switch } from "@/components/ui/switch";
 
 interface AddToBookshelfModalProps {
   book: Book;
   isOpen: boolean;
   onClose: () => void;
-  onAddToBookshelf: (bookData: {
+  onAdd: (bookData: {
     status: string;
     rating?: number;
     progress?: number;
@@ -52,7 +52,7 @@ const AddToBookshelfModal = ({
   book, 
   isOpen, 
   onClose, 
-  onAddToBookshelf 
+  onAdd 
 }: AddToBookshelfModalProps) => {
   const [status, setStatus] = useState<string>("want-to-read");
   const [rating, setRating] = useState<number>(0);
@@ -69,7 +69,7 @@ const AddToBookshelfModal = ({
     setIsSubmitting(true);
     
     try {
-      onAddToBookshelf({
+      onAdd({
         status,
         rating: rating > 0 ? rating : undefined,
         progress: status === "currently-reading" ? progress : undefined,

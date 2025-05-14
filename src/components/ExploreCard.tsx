@@ -15,7 +15,7 @@ const ExploreCard = ({ book, onAddToShelf }: ExploreCardProps) => {
   return (
     <div className="book-card hover-scale shadow-sm border rounded-md overflow-hidden">
       <div className="book-card-image relative pt-[150%]">
-        <Link to={`/book/${book.id}`}>
+        <Link to={`/google-book/${book.id}`}>
           <BookCover 
             src={book.coverImage} 
             alt={book.title} 
@@ -25,7 +25,7 @@ const ExploreCard = ({ book, onAddToShelf }: ExploreCardProps) => {
       </div>
       
       <div className="p-3">
-        <Link to={`/book/${book.id}`} className="mb-1">
+        <Link to={`/google-book/${book.id}`} className="mb-1">
           <h3 className="font-playfair font-medium text-lg line-clamp-1 hover:underline">
             {book.title}
           </h3>
@@ -51,7 +51,7 @@ const ExploreCard = ({ book, onAddToShelf }: ExploreCardProps) => {
         
         <div className="flex flex-wrap gap-2 mt-auto">
           <Button size="sm" variant="outline" asChild>
-            <Link to={`/book/${book.id}`}>
+            <Link to={`/google-book/${book.id}`}>
               <BookOpen className="mr-1 h-3 w-3" />
               View
             </Link>

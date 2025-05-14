@@ -66,6 +66,72 @@ export const useBook = (id: string) => {
   });
 };
 
+// Get a book by user book ID
+export const useUserBookDetails = (id: string) => {
+  return useQuery({
+    queryKey: ['userBookDetails', id],
+    queryFn: async () => {
+      console.log('useUserBookDetails called with ID:', id);
+      
+      try {
+        // First, try fetching it directly as a book ID (this is more reliable)
+        const { data: bookData, error: bookError } = await supabase
+          .from('books')
+          .select(`*`)
+          .eq('id', id)
+          .single();
+        
+        if (!bookError && bookData) {
+          console.log('Found book with ID:', id, bookData);
+          
+          // Now check if this book is in the user's collection
+          const { data: userBookData, error: userBookError } = await supabase
+            .from('user_books')
+            .select('*')
+            .eq('book_id', id)
+            .maybeSingle();
+          
+          return {
+            book: mapDbBookToBook(bookData),
+            userBook: !userBookError && userBookData ? userBookData : null
+          };
+        } else {
+          console.log('Book not found with ID:', id, 'Trying as user book ID');
+          
+          // If not found as a book ID, try as a user_book ID
+          const { data: userBookData, error: userBookError } = await supabase
+            .from('user_books')
+            .select('*, books(*)')
+            .eq('id', id)
+            .single();
+          
+          if (userBookError) {
+            console.error('Error fetching as user book:', userBookError);
+            throw new Error(`Book not found with ID: ${id}`);
+          }
+          
+          console.log('Found user book with ID:', id, userBookData);
+          
+          if (!userBookData.books) {
+            console.error('User book found but no associated book data');
+            throw new Error('User book found but no associated book data');
+          }
+          
+          return {
+            book: mapDbBookToBook(userBookData.books),
+            userBook: userBookData
+          };
+        }
+      } catch (error) {
+        console.error('Error in useUserBookDetails:', error);
+        throw error;
+      }
+    },
+    enabled: !!id,
+    retry: 1, // Only retry once to avoid infinite loops
+  });
+};
+
 // Get user's books with filters and pagination
 export const useUserBooks = (filters: BookshelfFilters = {}, page: number = 0, pageSize: number = 20) => {
   const { user } = useAuth();

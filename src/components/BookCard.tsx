@@ -44,7 +44,10 @@ const BookCard = ({ book, view }: BookCardProps) => {
           view === "grid" ? "w-full h-[250px]" : "w-24 md:w-32 h-full"
         )}
       >
-        <Link to={`/book/${book.id}`} className="block w-full h-full">
+        {/* Use the direct book ID for navigation */}
+        <Link to={`/book/${book.id}`} className="block w-full h-full" onClick={(e) => {
+          console.log('Navigating to book:', book);
+        }}>
           <BookCover 
             src={book.coverImage} 
             alt={book.title}
