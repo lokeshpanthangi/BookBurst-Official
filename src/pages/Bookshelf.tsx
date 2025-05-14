@@ -1,169 +1,90 @@
 
 import { useState, useEffect } from "react";
-import { UserBook, BookView, BookshelfFilters, Book } from "@/types/book";
+import { BookView, BookshelfFilters } from "@/types/book";
 import BookCard from "@/components/BookCard";
 import BookshelfControls from "@/components/BookshelfControls";
 import EmptyState from "@/components/EmptyState";
-import { Bookmark, Plus, Loader2 } from "lucide-react";
+import { Bookmark, Plus, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import AddBookModal from "@/components/AddBookModal";
 import { motion, AnimatePresence } from "framer-motion";
+import { 
+  useUserBooks, 
+  useAddUserBook, 
+  getViewPreference, 
+  saveViewPreference,
+  getLastSelectedTab,
+  saveLastSelectedTab
+} from "@/services/bookService";
+import { 
+  Pagination, 
+  PaginationContent, 
+  PaginationItem, 
+  PaginationLink, 
+  PaginationNext, 
+  PaginationPrevious 
+} from "@/components/ui/pagination";
+import { useAuth } from "@/hooks/useAuth";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-// Mock book data
-const mockBooks: UserBook[] = [
-  {
-    id: "1",
-    title: "The Midnight Library",
-    author: "Matt Haig",
-    coverImage: "https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=300",
-    description: "Between life and death there is a library, and within that library, the shelves go on forever. Every book provides a chance to try another life you could have lived.",
-    status: "currently-reading",
-    progress: 45,
-    userRating: 4,
-    genres: ["Fiction", "Fantasy", "Self-Help"]
-  },
-  {
-    id: "2",
-    title: "Atomic Habits",
-    author: "James Clear",
-    coverImage: "https://images.unsplash.com/photo-1535398089889-dd807df1dfaa?auto=format&fit=crop&q=80&w=300",
-    description: "No matter your goals, Atomic Habits offers a proven framework for improving--every day.",
-    status: "finished",
-    finishDate: "2023-03-15",
-    userRating: 5,
-    genres: ["Self-Help", "Psychology", "Productivity"]
-  },
-  {
-    id: "3",
-    title: "Dune",
-    author: "Frank Herbert",
-    coverImage: "https://images.unsplash.com/photo-1589409514187-c21d14df0d04?auto=format&fit=crop&q=80&w=300",
-    description: "Set on the desert planet Arrakis, Dune is the story of the boy Paul Atreides, heir to a noble family tasked with ruling an inhospitable world.",
-    status: "want-to-read",
-    genres: ["Science Fiction", "Fantasy", "Classic"]
-  },
-  {
-    id: "4",
-    title: "Project Hail Mary",
-    author: "Andy Weir",
-    coverImage: "https://images.unsplash.com/photo-1629992101753-56d196c8aabb?auto=format&fit=crop&q=80&w=300",
-    description: "Ryland Grace is the sole survivor on a desperate, last-chance mission—and if he fails, humanity and the Earth itself will perish.",
-    status: "currently-reading",
-    progress: 78,
-    userRating: 4.5,
-    genres: ["Science Fiction", "Adventure", "Space"]
-  },
-  {
-    id: "5",
-    title: "The Song of Achilles",
-    author: "Madeline Miller",
-    coverImage: "https://images.unsplash.com/photo-1633477189729-9290b3261d0a?auto=format&fit=crop&q=80&w=300",
-    description: "A tale of gods, kings, immortal fame, and the human heart, The Song of Achilles is a dazzling literary feat.",
-    status: "want-to-read",
-    genres: ["Historical Fiction", "Fantasy", "LGBT"]
-  },
-  {
-    id: "6",
-    title: "The Alchemist",
-    author: "Paulo Coelho",
-    coverImage: "https://images.unsplash.com/photo-1613922110088-8412b50d5eef?auto=format&fit=crop&q=80&w=300",
-    description: "The Alchemist follows the journey of an Andalusian shepherd boy named Santiago.",
-    status: "finished",
-    finishDate: "2022-08-10",
-    userRating: 4,
-    genres: ["Fiction", "Philosophy", "Fantasy"]
-  },
-];
+const ITEMS_PER_PAGE = 16;
 
 const Bookshelf = () => {
-  const [books, setBooks] = useState<UserBook[]>(mockBooks);
-  const [view, setView] = useState<BookView>(() => {
-    // Try to get the view preference from localStorage
-    const savedView = localStorage.getItem("bookshelf-view");
-    return (savedView as BookView) || "grid";
-  });
-  
+  const [view, setView] = useState<BookView>(() => getViewPreference());
   const [filters, setFilters] = useState<BookshelfFilters>({
     status: "all",
     sort: "title",
   });
-  
-  const [isLoading, setIsLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(0);
   const [addBookModalOpen, setAddBookModalOpen] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   
-  useEffect(() => {
-    // Save view preference to localStorage
-    localStorage.setItem("bookshelf-view", view);
-    
-    // Simulate loading data
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 1000);
-    
-    return () => clearTimeout(timer);
-  }, [view]);
-  
-  // Filter books based on current filters
-  const filteredBooks = books.filter(book => {
-    // Filter by status
-    if (filters.status && filters.status !== "all") {
-      if (book.status !== filters.status) return false;
-    }
-    
-    // Filter by search term
-    if (filters.search) {
-      const searchTerm = filters.search.toLowerCase();
-      const matchesTitle = book.title.toLowerCase().includes(searchTerm);
-      const matchesAuthor = book.author.toLowerCase().includes(searchTerm);
-      if (!matchesTitle && !matchesAuthor) return false;
-    }
-    
-    // Filter by genre
-    if (filters.genre && filters.genre.length > 0) {
-      if (!book.genres) return false;
-      const hasMatchingGenre = book.genres.some(genre => 
-        filters.genre?.includes(genre)
-      );
-      if (!hasMatchingGenre) return false;
-    }
-    
-    return true;
-  });
-  
-  // Sort books based on current sort option
-  const sortedBooks = [...filteredBooks].sort((a, b) => {
-    switch (filters.sort) {
-      case "title":
-        return a.title.localeCompare(b.title);
-      case "author":
-        return a.author.localeCompare(b.author);
-      case "rating":
-        const ratingA = a.userRating || 0;
-        const ratingB = b.userRating || 0;
-        return ratingB - ratingA; // Highest first
-      // Additional sort options would be implemented here
-      default:
-        return a.title.localeCompare(b.title);
-    }
-  });
+  // Get the default tab from cookies or use "all"
+  const [activeTab, setActiveTab] = useState<string>(() => getLastSelectedTab() || "all");
 
-  const handleAddBook = (book: Book) => {
-    // Convert Book to UserBook
-    const newUserBook: UserBook = {
-      ...book,
-      status: "want-to-read", // Default status
-    };
+  // Fetch user books with pagination and filters
+  const { 
+    data: booksData, 
+    isLoading, 
+    isError, 
+    error 
+  } = useUserBooks(filters, currentPage, ITEMS_PER_PAGE);
+
+  const addUserBook = useAddUserBook();
+
+  // Save view preference to cookies whenever it changes
+  useEffect(() => {
+    saveViewPreference(view);
+  }, [view]);
+
+  // Save active tab to cookies whenever it changes
+  useEffect(() => {
+    saveLastSelectedTab(activeTab);
     
-    // Add to books array
-    setBooks([...books, newUserBook]);
-  };
-  
+    // Update filters when tab changes
+    if (activeTab === "all" || activeTab === "currently-reading" || 
+        activeTab === "want-to-read" || activeTab === "finished") {
+      setFilters(prev => ({ ...prev, status: activeTab }));
+    }
+    
+    // Reset to page 0 when filters change
+    setCurrentPage(0);
+  }, [activeTab]);
+
   const handleBookClick = (bookId: string) => {
     navigate(`/book/${bookId}`);
+  };
+
+  const handleAddBook = (book: any) => {
+    addUserBook.mutate({
+      bookId: book.id,
+      status: "want-to-read"
+    });
   };
   
   // Animation variants
@@ -180,6 +101,31 @@ const Bookshelf = () => {
   const bookVariants = {
     hidden: { opacity: 0, y: 20 },
     show: { opacity: 1, y: 0, transition: { duration: 0.3 } }
+  };
+
+  // Calculate total pages
+  const totalPages = booksData ? Math.ceil(booksData.totalCount / ITEMS_PER_PAGE) : 0;
+  
+  // Get page numbers to display
+  const getPageNumbers = () => {
+    const pages = [];
+    
+    // Show first page
+    if (currentPage > 2) {
+      pages.push(0);
+    }
+    
+    // Show pages around current page
+    for (let i = Math.max(0, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
+      pages.push(i);
+    }
+    
+    // Show last page
+    if (currentPage < totalPages - 3) {
+      pages.push(totalPages - 1);
+    }
+    
+    return pages;
   };
   
   return (
@@ -207,13 +153,39 @@ const Bookshelf = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.2 }}
       >
+        {/* Status Tabs */}
+        <Tabs 
+          defaultValue={activeTab} 
+          value={activeTab} 
+          onValueChange={setActiveTab} 
+          className="mb-6"
+        >
+          <TabsList className="w-full grid grid-cols-4 mb-4">
+            <TabsTrigger value="all">All Books</TabsTrigger>
+            <TabsTrigger value="currently-reading">Reading</TabsTrigger>
+            <TabsTrigger value="want-to-read">Want to Read</TabsTrigger>
+            <TabsTrigger value="finished">Finished</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
         <BookshelfControls
           view={view}
           setView={setView}
           filters={filters}
           setFilters={setFilters}
+          onFilterChange={() => setCurrentPage(0)}
         />
       </motion.div>
+      
+      {isError && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>
+            {error instanceof Error ? error.message : "Failed to load your books"}
+          </AlertDescription>
+        </Alert>
+      )}
       
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
@@ -228,31 +200,77 @@ const Bookshelf = () => {
             </div>
           ))}
         </div>
-      ) : sortedBooks.length > 0 ? (
-        <motion.div 
-          variants={containerVariants}
-          initial="hidden"
-          animate="show"
-          className={
-            view === "grid"
-              ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
-              : "flex flex-col gap-4"
-          }
-        >
-          <AnimatePresence>
-            {sortedBooks.map((book) => (
-              <motion.div 
-                key={book.id}
-                variants={bookVariants}
-                onClick={() => handleBookClick(book.id)}
-                className="cursor-pointer hover:scale-[1.02] transition-transform duration-300"
-                whileHover={{ y: -5 }}
-              >
-                <BookCard book={book} view={view} />
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </motion.div>
+      ) : booksData && booksData.books.length > 0 ? (
+        <>
+          <motion.div 
+            variants={containerVariants}
+            initial="hidden"
+            animate="show"
+            className={
+              view === "grid"
+                ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
+                : "flex flex-col gap-4"
+            }
+          >
+            <AnimatePresence>
+              {booksData.books.map((book) => (
+                <motion.div 
+                  key={book.id}
+                  variants={bookVariants}
+                  onClick={() => handleBookClick(book.id)}
+                  className="cursor-pointer hover:scale-[1.02] transition-transform duration-300"
+                  whileHover={{ y: -5 }}
+                >
+                  <BookCard book={book} view={view} />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </motion.div>
+          
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <Pagination className="mt-8">
+              <PaginationContent>
+                {currentPage > 0 && (
+                  <PaginationItem>
+                    <PaginationPrevious 
+                      onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))} 
+                      className="cursor-pointer"
+                    />
+                  </PaginationItem>
+                )}
+                
+                {getPageNumbers().map((page, index, array) => (
+                  <React.Fragment key={page}>
+                    {index > 0 && array[index] - array[index - 1] > 1 && (
+                      <PaginationItem>
+                        <PaginationLink>...</PaginationLink>
+                      </PaginationItem>
+                    )}
+                    <PaginationItem>
+                      <PaginationLink 
+                        isActive={page === currentPage}
+                        onClick={() => setCurrentPage(page)}
+                        className="cursor-pointer"
+                      >
+                        {page + 1}
+                      </PaginationLink>
+                    </PaginationItem>
+                  </React.Fragment>
+                ))}
+                
+                {currentPage < totalPages - 1 && (
+                  <PaginationItem>
+                    <PaginationNext 
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))}
+                      className="cursor-pointer"
+                    />
+                  </PaginationItem>
+                )}
+              </PaginationContent>
+            </Pagination>
+          )}
+        </>
       ) : (
         <EmptyState
           icon={<Bookmark className="h-8 w-8 text-muted-foreground" />}

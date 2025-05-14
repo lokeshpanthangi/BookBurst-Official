@@ -13,21 +13,25 @@ interface ExploreCardProps {
 
 const ExploreCard = ({ book, onAddToShelf }: ExploreCardProps) => {
   return (
-    <div className="book-card hover-scale">
-      <div className="book-card-image">
+    <div className="book-card hover-scale shadow-sm border rounded-md overflow-hidden">
+      <div className="book-card-image relative pt-[150%]">
         <Link to={`/book/${book.id}`}>
-          <BookCover src={book.coverImage} alt={book.title} className="w-full" />
+          <BookCover 
+            src={book.coverImage} 
+            alt={book.title} 
+            className="absolute inset-0 w-full h-full object-cover" 
+          />
         </Link>
       </div>
       
       <div className="p-3">
         <Link to={`/book/${book.id}`} className="mb-1">
-          <h3 className="font-playfair font-medium text-lg line-clamp-1">
+          <h3 className="font-playfair font-medium text-lg line-clamp-1 hover:underline">
             {book.title}
           </h3>
         </Link>
         
-        <p className="text-sm text-muted-foreground mb-2">{book.author}</p>
+        <p className="text-sm text-muted-foreground mb-2 line-clamp-1">{book.author}</p>
         
         {book.averageRating ? (
           <div className="flex items-center space-x-2 mb-3">
@@ -45,7 +49,7 @@ const ExploreCard = ({ book, onAddToShelf }: ExploreCardProps) => {
           <div className="h-5 mb-3"></div>
         )}
         
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 mt-auto">
           <Button size="sm" variant="outline" asChild>
             <Link to={`/book/${book.id}`}>
               <BookOpen className="mr-1 h-3 w-3" />

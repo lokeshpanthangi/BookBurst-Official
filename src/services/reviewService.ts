@@ -15,25 +15,25 @@ export const useBookReviews = (bookId: string) => {
         .from('reviews')
         .select(`
           *,
-          profiles:user_id(username, avatar_url)
+          profiles(*)
         `)
-        .eq('book_id', bookId);
+        .eq('book_id', bookId)
+        .order('date_posted', { ascending: false });
       
       if (error) throw error;
       
-      // Transform the data to match our Review type
-      const reviews: Review[] = data.map((review: any) => ({
-        id: review.id,
-        bookId: review.book_id,
-        userId: review.user_id,
-        userName: review.profiles.username,
-        userAvatar: review.profiles.avatar_url,
-        rating: review.rating,
-        content: review.content,
-        datePosted: review.date_posted,
-        likes: review.likes,
-        spoiler: review.spoiler,
-        recommended: review.recommended,
+      const reviews: Review[] = data.map(item => ({
+        id: item.id,
+        bookId: item.book_id,
+        userId: item.user_id,
+        userName: item.profiles?.username || 'Anonymous',
+        userAvatar: item.profiles?.avatar_url || undefined,
+        rating: item.rating,
+        content: item.content || '',
+        datePosted: item.date_posted,
+        likes: item.likes,
+        spoiler: item.spoiler,
+        recommended: item.recommended
       }));
       
       return reviews;
@@ -49,18 +49,42 @@ export const useAddReview = () => {
   const { user } = useAuth();
   
   return useMutation({
-    mutationFn: async (review: Omit<Review, "id" | "userName" | "userAvatar" | "datePosted" | "likes">) => {
+    mutationFn: async ({ 
+      bookId, 
+      rating, 
+      content, 
+      spoiler = false, 
+      recommended = true 
+    }: { 
+      bookId: string; 
+      rating: number; 
+      content: string; 
+      spoiler?: boolean; 
+      recommended?: boolean;
+    }) => {
       if (!user) throw new Error("User must be authenticated");
+      
+      // Check if the user already reviewed this book
+      const { data: existingReview } = await supabase
+        .from('reviews')
+        .select('*')
+        .eq('book_id', bookId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      if (existingReview) {
+        throw new Error('You have already reviewed this book');
+      }
       
       const { data, error } = await supabase
         .from('reviews')
         .insert([{
-          book_id: review.bookId,
+          book_id: bookId,
           user_id: user.id,
-          rating: review.rating,
-          content: review.content,
-          spoiler: review.spoiler,
-          recommended: review.recommended,
+          rating,
+          content,
+          spoiler,
+          recommended
         }])
         .select()
         .single();
@@ -71,11 +95,12 @@ export const useAddReview = () => {
       await supabase
         .from('reading_activity')
         .insert([{
-          book_id: review.bookId,
+          book_id: bookId,
           user_id: user.id,
           activity_type: 'reviewed',
           details: {
-            rating: review.rating,
+            rating,
+            review_id: data.id
           } as Json,
         }]);
       
@@ -85,12 +110,12 @@ export const useAddReview = () => {
       queryClient.invalidateQueries({ queryKey: ['reviews', variables.bookId] });
       queryClient.invalidateQueries({ queryKey: ['readingActivity'] });
       toast({
-        title: "Review submitted successfully",
+        title: "Review added successfully",
       });
     },
     onError: (error: any) => {
       toast({
-        title: "Failed to submit review",
+        title: "Failed to add review",
         description: error.message,
         variant: "destructive",
       });
@@ -98,30 +123,36 @@ export const useAddReview = () => {
   });
 };
 
-// Update a review
-export const useUpdateReview = () => {
+// Like a review
+export const useLikeReview = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
   
   return useMutation({
     mutationFn: async ({ 
-      id,
-      updates,
-      bookId,
+      reviewId, 
+      bookId 
     }: { 
-      id: string; 
-      updates: Partial<Review>;
+      reviewId: string; 
       bookId: string;
     }) => {
+      if (!user) throw new Error("User must be authenticated");
+      
+      // First get the current review
+      const { data: review, error: fetchError } = await supabase
+        .from('reviews')
+        .select('*')
+        .eq('id', reviewId)
+        .single();
+      
+      if (fetchError) throw fetchError;
+      
+      // Increment the likes count
       const { data, error } = await supabase
         .from('reviews')
-        .update({
-          rating: updates.rating,
-          content: updates.content,
-          spoiler: updates.spoiler,
-          recommended: updates.recommended,
-        })
-        .eq('id', id)
+        .update({ likes: (review.likes || 0) + 1 })
+        .eq('id', reviewId)
         .select()
         .single();
       
@@ -132,12 +163,12 @@ export const useUpdateReview = () => {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['reviews', variables.bookId] });
       toast({
-        title: "Review updated successfully",
+        title: "Review liked",
       });
     },
     onError: (error: any) => {
       toast({
-        title: "Failed to update review",
+        title: "Failed to like review",
         description: error.message,
         variant: "destructive",
       });
@@ -145,30 +176,79 @@ export const useUpdateReview = () => {
   });
 };
 
+// Get user's reviews
+export const useUserReviews = () => {
+  const { user } = useAuth();
+  
+  return useQuery({
+    queryKey: ['userReviews'],
+    queryFn: async () => {
+      if (!user) throw new Error("User must be authenticated");
+      
+      const { data, error } = await supabase
+        .from('reviews')
+        .select(`
+          *,
+          books(*)
+        `)
+        .eq('user_id', user.id)
+        .order('date_posted', { ascending: false });
+      
+      if (error) throw error;
+      
+      const reviews = data.map(item => ({
+        id: item.id,
+        bookId: item.book_id,
+        userId: item.user_id,
+        rating: item.rating,
+        content: item.content || '',
+        datePosted: item.date_posted,
+        likes: item.likes,
+        spoiler: item.spoiler,
+        recommended: item.recommended,
+        book: {
+          id: item.books.id,
+          title: item.books.title,
+          author: item.books.author,
+          coverImage: item.books.cover_image
+        }
+      }));
+      
+      return reviews;
+    },
+    enabled: !!user,
+  });
+};
+
 // Delete a review
 export const useDeleteReview = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
   
   return useMutation({
     mutationFn: async ({ 
-      id,
-      bookId,
+      reviewId, 
+      bookId 
     }: { 
-      id: string;
+      reviewId: string; 
       bookId: string;
     }) => {
+      if (!user) throw new Error("User must be authenticated");
+      
       const { error } = await supabase
         .from('reviews')
         .delete()
-        .eq('id', id);
+        .eq('id', reviewId)
+        .eq('user_id', user.id);
       
       if (error) throw error;
       
-      return id;
+      return { reviewId, bookId };
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['reviews', variables.bookId] });
+      queryClient.invalidateQueries({ queryKey: ['userReviews'] });
       toast({
         title: "Review deleted successfully",
       });
