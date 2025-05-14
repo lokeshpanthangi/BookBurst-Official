@@ -11,24 +11,45 @@ import { Link } from "react-router-dom";
 interface TimelineEventProps {
   book: UserBook;
   date: string;
+  type?: 'started' | 'finished' | 'updated' | 'rated' | 'reviewed';
+  details?: any;
 }
 
-const TimelineEvent = ({ book, date }: TimelineEventProps) => {
+const TimelineEvent = ({ book, date, type, details }: TimelineEventProps) => {
   const [expanded, setExpanded] = useState(false);
   
   const formattedDate = new Date(date);
   const timeAgo = formatDistanceToNow(formattedDate, { addSuffix: true });
   
   const getEventText = () => {
-    switch (book.status) {
-      case "finished":
-        return "finished reading";
-      case "currently-reading":
-        return "started reading";
-      case "want-to-read":
-        return "added to want to read";
-      default:
-        return "updated";
+    // If type is provided, use it; otherwise fall back to book status
+    if (type) {
+      switch (type) {
+        case "finished":
+          return "finished reading";
+        case "started":
+          return "started reading";
+        case "updated":
+          return "updated";
+        case "rated":
+          return "rated";
+        case "reviewed":
+          return "reviewed";
+        default:
+          return "updated";
+      }
+    } else {
+      // Fallback to book status if type is not provided
+      switch (book.status) {
+        case "finished":
+          return "finished reading";
+        case "currently-reading":
+          return "started reading";
+        case "want-to-read":
+          return "added to want to read";
+        default:
+          return "updated";
+      }
     }
   };
   
@@ -60,11 +81,11 @@ const TimelineEvent = ({ book, date }: TimelineEventProps) => {
                 You {getEventText()} this book
               </p>
               
-              {book.userRating && (
+              {(book.userRating || (type === 'rated' && details?.rating)) && (
                 <div className="flex items-center mb-3">
-                  <StarRating rating={book.userRating} readOnly size="sm" />
+                  <StarRating rating={book.userRating || details?.rating} readOnly size="sm" />
                   <span className="ml-2 text-xs text-muted-foreground">
-                    You rated it {book.userRating}
+                    You rated it {book.userRating || details?.rating}
                   </span>
                 </div>
               )}

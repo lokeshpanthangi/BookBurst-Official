@@ -14,6 +14,7 @@ import {
   LogOut,
   Settings,
   MessageSquare,
+  Users,
 } from "lucide-react";
 import ThemeSwitcher from "./ThemeSwitcher";
 import { cn } from "@/lib/utils";
@@ -45,6 +46,7 @@ const Navigation = () => {
   const authenticatedNavItems = [
     { path: "/bookshelf", icon: <Bookmark className="mr-2 h-4 w-4" />, label: "Bookshelf", requiresAuth: true },
     { path: "/explore", icon: <Compass className="mr-2 h-4 w-4" />, label: "Explore", requiresAuth: false },
+    { path: "/community", icon: <Users className="mr-2 h-4 w-4" />, label: "Community", requiresAuth: false },
     { path: "/timeline", icon: <Clock className="mr-2 h-4 w-4" />, label: "Timeline", requiresAuth: true },
   ];
   

@@ -1,85 +1,22 @@
 
-import { useState, useEffect } from "react";
 import { UserBook } from "@/types/book";
 import TimelineEvent from "@/components/TimelineEvent";
 import EmptyState from "@/components/EmptyState";
-import { Clock, Bookmark } from "lucide-react";
+import { Clock, BookCheck, Bookmark } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
+import { useReadingTimeline } from "@/services/timelineService";
+import { Skeleton } from "@/components/ui/skeleton";
 
-// Mock books with activity data
-const mockTimelineData: {book: UserBook; date: string}[] = [
-  {
-    book: {
-      id: "2",
-      title: "Atomic Habits",
-      author: "James Clear",
-      coverImage: "https://images.unsplash.com/photo-1535398089889-dd807df1dfaa?auto=format&fit=crop&q=80&w=300",
-      description: "No matter your goals, Atomic Habits offers a proven framework for improving--every day.",
-      status: "finished",
-      finishDate: "2023-03-15",
-      userRating: 5,
-      genres: ["Self-Help", "Psychology", "Productivity"],
-      notes: "This book completely changed how I think about habit formation. The concept of 1% improvements and identity-based habits resonated strongly with me. I've already started implementing the habit stacking technique with some success."
-    },
-    date: "2023-03-15T10:30:00Z"
-  },
-  {
-    book: {
-      id: "1",
-      title: "The Midnight Library",
-      author: "Matt Haig",
-      coverImage: "https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=300",
-      description: "Between life and death there is a library, and within that library, the shelves go on forever. Every book provides a chance to try another life you could have lived.",
-      status: "currently-reading",
-      progress: 45,
-      userRating: 4,
-      genres: ["Fiction", "Fantasy", "Self-Help"]
-    },
-    date: "2023-02-28T15:45:00Z"
-  },
-  {
-    book: {
-      id: "6",
-      title: "The Alchemist",
-      author: "Paulo Coelho",
-      coverImage: "https://images.unsplash.com/photo-1613922110088-8412b50d5eef?auto=format&fit=crop&q=80&w=300",
-      description: "The Alchemist follows the journey of an Andalusian shepherd boy named Santiago.",
-      status: "finished",
-      finishDate: "2022-08-10",
-      userRating: 4,
-      genres: ["Fiction", "Philosophy", "Fantasy"]
-    },
-    date: "2022-08-10T21:15:00Z"
-  },
-  {
-    book: {
-      id: "3",
-      title: "Dune",
-      author: "Frank Herbert",
-      coverImage: "https://images.unsplash.com/photo-1589409514187-c21d14df0d04?auto=format&fit=crop&q=80&w=300",
-      description: "Set on the desert planet Arrakis, Dune is the story of the boy Paul Atreides, heir to a noble family tasked with ruling an inhospitable world.",
-      status: "want-to-read",
-      genres: ["Science Fiction", "Fantasy", "Classic"]
-    },
-    date: "2022-07-15T09:20:00Z"
-  }
-];
 
 const Timeline = () => {
-  const [timelineData, setTimelineData] = useState<{book: UserBook; date: string}[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+  const { data: timelineEvents, isLoading, error } = useReadingTimeline();
   
-  useEffect(() => {
-    // Simulate loading data
-    const timer = setTimeout(() => {
-      setTimelineData(mockTimelineData);
-      setIsLoading(false);
-    }, 1000);
-    
-    return () => clearTimeout(timer);
-  }, []);
+  // Filter timeline to only show finished books
+  const finishedBooksTimeline = timelineEvents?.filter(event => 
+    event.type === 'finished' || (event.book.status === 'finished' && event.type === 'rated')
+  ) || [];
   
   const goToBookshelf = () => {
     navigate("/bookshelf");
@@ -90,7 +27,7 @@ const Timeline = () => {
       <div className="mb-8">
         <h1 className="text-3xl font-playfair font-bold mb-2">Reading Timeline</h1>
         <p className="text-muted-foreground">
-          Your reading journey visualized. See the history of the books you've read, started, and added to your shelves.
+          Your reading journey visualized. See the history of books you've finished reading.
         </p>
       </div>
       
@@ -103,21 +40,28 @@ const Timeline = () => {
             </div>
           ))}
         </div>
-      ) : timelineData.length > 0 ? (
+      ) : error ? (
+        <div className="p-8 text-center border rounded-lg">
+          <p className="text-destructive">Error loading timeline data. Please try again later.</p>
+          <Button onClick={() => window.location.reload()} className="mt-4">Refresh</Button>
+        </div>
+      ) : finishedBooksTimeline.length > 0 ? (
         <div className="relative">
-          {timelineData.map((item, index) => (
+          {finishedBooksTimeline.map((event, index) => (
             <TimelineEvent 
-              key={`${item.book.id}-${index}`} 
-              book={item.book} 
-              date={item.date} 
+              key={`${event.book.id}-${index}`} 
+              book={event.book} 
+              date={event.date} 
+              type={event.type}
+              details={event.details}
             />
           ))}
         </div>
       ) : (
         <EmptyState
-          icon={<Clock className="h-8 w-8 text-muted-foreground" />}
-          title="Your timeline is empty"
-          description="Add books to your shelves and start tracking your reading progress to build your timeline."
+          icon={<BookCheck className="h-8 w-8 text-muted-foreground" />}
+          title="No finished books yet"
+          description="Mark books as finished in your bookshelf to see them appear in your timeline."
           action={{
             label: "Go to bookshelf",
             onClick: goToBookshelf,
