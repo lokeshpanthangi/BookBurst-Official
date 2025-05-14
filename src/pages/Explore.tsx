@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import ExploreCard from "@/components/ExploreCard";
@@ -63,7 +63,7 @@ const Explore = () => {
   });
 
   // Search books with pagination
-  const searchQuery = useQuery({
+  const searchBooksQuery = useQuery({
     queryKey: ['search-books', searchQuery, searchPage],
     queryFn: () => googleBooksService.searchBooks(searchQuery, searchPage, ITEMS_PER_PAGE),
     enabled: searchQuery.length > 0,
@@ -102,8 +102,8 @@ const Explore = () => {
   };
 
   // For pagination
-  const totalPages = searchQuery.data?.totalItems 
-    ? Math.ceil(searchQuery.data.totalItems / ITEMS_PER_PAGE) 
+  const totalPages = searchBooksQuery.data?.totalItems 
+    ? Math.ceil(searchBooksQuery.data.totalItems / ITEMS_PER_PAGE) 
     : 0;
 
   const getPageNumbers = () => {
@@ -217,7 +217,7 @@ const Explore = () => {
               <Sparkles className="h-4 w-4 mr-2" />
               Recommended
             </TabsTrigger>
-            {searchQuery.data && (
+            {searchBooksQuery.data && (
               <TabsTrigger value="search">
                 <Search className="h-4 w-4 mr-2" />
                 Search Results
@@ -286,14 +286,14 @@ const Explore = () => {
             <h2 className="text-2xl font-medium mb-4">
               Search Results for "{searchQuery}"
             </h2>
-            {searchQuery.isLoading ? (
+            {searchBooksQuery.isLoading ? (
               renderLoadingState()
-            ) : searchQuery.isError ? (
-              renderErrorAlert(searchQuery.error)
-            ) : searchQuery.data?.books.length ? (
+            ) : searchBooksQuery.isError ? (
+              renderErrorAlert(searchBooksQuery.error)
+            ) : searchBooksQuery.data?.books.length ? (
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-8">
-                  {searchQuery.data.books.map((book) => (
+                  {searchBooksQuery.data.books.map((book) => (
                     <ExploreCard
                       key={book.id}
                       book={book}

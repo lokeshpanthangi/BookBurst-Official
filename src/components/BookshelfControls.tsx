@@ -15,6 +15,7 @@ interface BookshelfControlsProps {
   setView: (view: BookView) => void;
   filters: BookshelfFilters;
   setFilters: (filters: BookshelfFilters) => void;
+  onFilterChange?: () => void; // Added this property to fix the TS error
 }
 
 const BookshelfControls = ({
@@ -22,20 +23,24 @@ const BookshelfControls = ({
   setView,
   filters,
   setFilters,
+  onFilterChange,
 }: BookshelfControlsProps) => {
   const [searchTerm, setSearchTerm] = useState("");
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setFilters({ ...filters, search: searchTerm });
+    onFilterChange?.(); // Call onFilterChange if provided
   };
 
   const handleStatusChange = (status: BookshelfFilters["status"]) => {
     setFilters({ ...filters, status });
+    onFilterChange?.(); // Call onFilterChange if provided
   };
 
   const handleSortChange = (sort: BookshelfFilters["sort"]) => {
     setFilters({ ...filters, sort });
+    onFilterChange?.(); // Call onFilterChange if provided
   };
 
   const getSortLabel = (sort: BookshelfFilters["sort"]) => {
