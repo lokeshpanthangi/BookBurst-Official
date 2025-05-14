@@ -11,16 +11,18 @@ const mapDbBookToBook = (item: any): Book => ({
   id: item.id,
   title: item.title,
   author: item.author,
-  coverImage: item.cover_image || '',
+  cover_image: item.cover_image || '',
   description: item.description || '',
-  publishedDate: item.published_date,
   publisher: item.publisher,
-  pageCount: item.page_count,
+  published_date: item.published_date,
   isbn: item.isbn,
+  page_count: item.page_count,
   language: item.language,
-  genres: item.genres || [],
-  averageRating: item.average_rating || undefined,
-  ratingsCount: item.ratings_count || undefined
+  created_at: item.created_at,
+  updated_at: item.updated_at,
+  book_genres: item.book_genres || [],
+  average_rating: item.average_rating || undefined,
+  ratings_count: item.ratings_count || undefined
 });
 
 // Get all books from the database
@@ -62,16 +64,16 @@ export const useBook = (id: string) => {
         id: data.id,
         title: data.title,
         author: data.author,
-        coverImage: data.cover_image || '',
+        cover_image: data.cover_image || '',
         description: data.description || '',
-        publishedDate: data.published_date,
         publisher: data.publisher,
-        pageCount: data.page_count,
+        published_date: data.published_date,
         isbn: data.isbn,
+        page_count: data.page_count,
         language: data.language,
-        genres: data.book_genres?.map((bg: any) => bg.genres.name) || [],
-        averageRating: data.average_rating || undefined,
-        ratingsCount: data.ratings_count || undefined
+        book_genres: data.book_genres?.map((bg: any) => bg.genres.name) || [],
+        average_rating: data.average_rating || undefined,
+        ratings_count: data.ratings_count || undefined
       };
       
       return formattedBook;
@@ -169,12 +171,12 @@ export const useUserBooks = (filters: BookshelfFilters = {}, page: number = 0, p
         id: item.books.id,
         title: item.books.title,
         author: item.books.author,
-        coverImage: item.books.cover_image || '',
+        cover_image: item.books.cover_image || '',
         description: item.books.description || '',
-        publishedDate: item.books.published_date,
         publisher: item.books.publisher,
-        pageCount: item.books.page_count,
+        published_date: item.books.published_date,
         isbn: item.books.isbn,
+        page_count: item.books.page_count,
         language: item.books.language,
         status: item.status,
         startDate: item.start_date,
@@ -183,7 +185,7 @@ export const useUserBooks = (filters: BookshelfFilters = {}, page: number = 0, p
         progress: item.progress,
         notes: item.notes,
         userBookId: item.id,
-        genres: item.books.genres || []
+        book_genres: item.books.book_genres?.map((bg: any) => bg.genres.name) || []
       }));
       
       return { 
@@ -707,4 +709,47 @@ export const saveLastSelectedTab = (tabId: string) => {
 export const getLastSelectedTab = (): string | null => {
   const match = document.cookie.match(/(^|;)\s*bookshelf-last-tab=([^;]+)/);
   return match ? match[2] : null;
+};
+
+// Get book with the highest rating
+export const getBookWithHighestRating = async () => {
+  // When accessing these optional properties, we need to use optional chaining
+  const { data: books } = await supabase.from('books').select('*').order('average_rating', { ascending: false }).limit(1);
+  return books && books.length > 0 ? books[0] : null;
+};
+
+// Get books by genre
+export const getBooksByGenre = async (genreId: string) => {
+  const { data } = await supabase
+    .from('book_genres')
+    .select('book_id')
+    .filter('genre_id', 'eq', genreId);
+    
+  return data.map(bg => bg.book_id);
+};
+
+// Get books by genres
+export const getBooksByGenres = async (genreIds: string[]) => {
+  const { data } = await supabase
+    .from('book_genres')
+    .select('book_id')
+    .filter('genre_id', 'in', genreIds);
+    
+  return data.map(bg => bg.book_id);
+};
+
+// Order books by a given sort
+export const orderBooksBy = (query: any, sort: string) => {
+  switch (sort) {
+    case 'title':
+      return query.order('title', { ascending: true });
+    case 'author': 
+      return query.order('author', { ascending: true });
+    case 'newest':
+      return query.order('created_at', { ascending: false });
+    case 'rating':
+      return query.order('average_rating', { ascending: false });
+    default:
+      return query.order('created_at', { ascending: false });
+  }
 };
