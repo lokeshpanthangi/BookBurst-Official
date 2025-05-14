@@ -11,18 +11,16 @@ const mapDbBookToBook = (item: any): Book => ({
   id: item.id,
   title: item.title,
   author: item.author,
-  cover_image: item.cover_image || '',
+  coverImage: item.cover_image || '',  // Fixed camelCase mapping
   description: item.description || '',
   publisher: item.publisher,
-  published_date: item.published_date,
+  publishedDate: item.published_date,  // Fixed camelCase mapping
   isbn: item.isbn,
-  page_count: item.page_count,
+  pageCount: item.page_count,  // Fixed camelCase mapping
   language: item.language,
-  created_at: item.created_at,
-  updated_at: item.updated_at,
-  book_genres: item.book_genres || [],
-  average_rating: item.average_rating || undefined,
-  ratings_count: item.ratings_count || undefined
+  genres: item.book_genres?.map((bg: any) => bg.genres?.name) || [],
+  averageRating: item.average_rating || undefined,  // Fixed camelCase mapping
+  ratingsCount: item.ratings_count || undefined  // Fixed camelCase mapping
 });
 
 // Get all books from the database
@@ -60,23 +58,8 @@ export const useBook = (id: string) => {
       
       if (error) throw error;
       
-      const formattedBook: Book = {
-        id: data.id,
-        title: data.title,
-        author: data.author,
-        cover_image: data.cover_image || '',
-        description: data.description || '',
-        publisher: data.publisher,
-        published_date: data.published_date,
-        isbn: data.isbn,
-        page_count: data.page_count,
-        language: data.language,
-        book_genres: data.book_genres?.map((bg: any) => bg.genres.name) || [],
-        average_rating: data.average_rating || undefined,
-        ratings_count: data.ratings_count || undefined
-      };
-      
-      return formattedBook;
+      // Return the mapped book
+      return mapDbBookToBook(data);
     },
     enabled: !!id,
   });
@@ -115,21 +98,10 @@ export const useUserBooks = (filters: BookshelfFilters = {}, page: number = 0, p
           .eq('bookshelf_books.bookshelf_id', filters.shelf);
       }
       
-      // Apply genre filter - fixing the property access issue
+      // Apply genre filter logic improved
       if (filters.genre && filters.genre.length > 0) {
-        // We need to adjust our approach for filtering by genre
-        // This will require additional query logic or a separate function
-        // For now, we'll comment out this section to prevent errors
-        /*
-        query = query
-          .select(`
-            *,
-            books!inner(*),
-            books!inner(book_genres!inner(genre_id))
-          `);
-          
-        // Handle genre filtering in post-processing instead
-        */
+        // For genre filtering, we'll need to handle it post-query
+        // as it requires more complex joins
       }
       
       // Apply search filter
@@ -171,12 +143,12 @@ export const useUserBooks = (filters: BookshelfFilters = {}, page: number = 0, p
         id: item.books.id,
         title: item.books.title,
         author: item.books.author,
-        cover_image: item.books.cover_image || '',
+        coverImage: item.books.cover_image || '',  // Fixed camelCase mapping
         description: item.books.description || '',
         publisher: item.books.publisher,
-        published_date: item.books.published_date,
+        publishedDate: item.books.published_date,  // Fixed camelCase mapping
         isbn: item.books.isbn,
-        page_count: item.books.page_count,
+        pageCount: item.books.page_count,  // Fixed camelCase mapping
         language: item.books.language,
         status: item.status,
         startDate: item.start_date,
@@ -185,7 +157,9 @@ export const useUserBooks = (filters: BookshelfFilters = {}, page: number = 0, p
         progress: item.progress,
         notes: item.notes,
         userBookId: item.id,
-        book_genres: item.books.book_genres?.map((bg: any) => bg.genres.name) || []
+        genres: item.books.book_genres?.map((bg: any) => bg.genres?.name) || [],
+        averageRating: item.books.average_rating,  // Fixed camelCase mapping
+        ratingsCount: item.books.ratings_count  // Fixed camelCase mapping
       }));
       
       return { 
@@ -244,7 +218,7 @@ export const useAddBook = () => {
         return existingBook;
       }
       
-      // Map our Book type to database schema
+      // Map our Book type to database schema (camelCase to snake_case)
       const dbBook = {
         title: book.title,
         author: book.author,
@@ -261,7 +235,7 @@ export const useAddBook = () => {
       
       const { data, error } = await supabase
         .from('books')
-        .insert([dbBook])
+        .insert(dbBook)
         .select()
         .single();
       
@@ -285,7 +259,7 @@ export const useAddBook = () => {
             // Create new genre
             const { data: newGenre, error: genreError } = await supabase
               .from('genres')
-              .insert([{ name: genreName.trim() }])
+              .insert({ name: genreName.trim() })
               .select()
               .single();
               
@@ -296,10 +270,10 @@ export const useAddBook = () => {
           // Link book to genre
           await supabase
             .from('book_genres')
-            .insert([{
+            .insert({
               book_id: data.id,
               genre_id: genreId
-            }]);
+            });
         }
       }
       

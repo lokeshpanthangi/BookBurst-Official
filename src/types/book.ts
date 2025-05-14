@@ -3,16 +3,16 @@ export interface Book {
   id: string;
   title: string;
   author: string;
-  coverImage: string;
+  coverImage: string; // Matches with cover_image in the database mapping function
   description: string;
-  publishedDate?: string;
+  publishedDate?: string; // Matches with published_date in the database mapping function
   publisher?: string;
-  pageCount?: number;
+  pageCount?: number; // Matches with page_count in the database mapping function
   isbn?: string;
   language?: string;
   genres?: string[];
-  averageRating?: number;
-  ratingsCount?: number;
+  averageRating?: number; // Matches with average_rating in the database mapping function
+  ratingsCount?: number; // Matches with ratings_count in the database mapping function
   series?: {
     name: string;
     position: number;
@@ -27,6 +27,7 @@ export interface UserBook extends Book {
   progress?: number; // 0 to 100
   notes?: string;
   shelves?: string[];
+  userBookId?: string; // Added to store the user_book relation ID
 }
 
 export interface BookshelfFilters {
