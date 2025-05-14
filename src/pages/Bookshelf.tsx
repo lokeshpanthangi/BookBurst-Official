@@ -79,6 +79,7 @@ const Bookshelf = () => {
   }, [activeTab]);
 
   const handleBookClick = (bookId: string) => {
+    // Navigate to the specific book's detail page
     navigate(`/book/${bookId}`);
   };
 
@@ -166,21 +167,7 @@ const Bookshelf = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.2 }}
       >
-        {/* Status Tabs */}
-        <Tabs 
-          defaultValue={activeTab} 
-          value={activeTab} 
-          onValueChange={setActiveTab} 
-          className="mb-6"
-        >
-          <TabsList className="w-full grid grid-cols-4 mb-4 border-none">
-            <TabsTrigger value="all">All Books</TabsTrigger>
-            <TabsTrigger value="currently-reading">Reading</TabsTrigger>
-            <TabsTrigger value="want-to-read">Want to Read</TabsTrigger>
-            <TabsTrigger value="finished">Finished</TabsTrigger>
-          </TabsList>
-        </Tabs>
-
+        <h1 className="text-3xl font-bold mb-6">My Bookshelf</h1>
         <BookshelfControls
           view={view}
           setView={setView}
@@ -200,22 +187,6 @@ const Bookshelf = () => {
         </Alert>
       )}
       
-      {/* Debug information */}
-      <div className="mb-4 p-4 border border-dashed rounded">
-        <h3 className="font-semibold mb-2">Debug Info:</h3>
-        <p>Loading: {isLoading ? 'Yes' : 'No'}</p>
-        <p>Error: {isError ? 'Yes' : 'No'}</p>
-        <p>User ID: {user?.id || 'Not logged in'}</p>
-        <p>Active Tab: {activeTab}</p>
-        <p>Books Count: {booksData ? booksData.books.length : 0}</p>
-        <p>Total Count: {booksData ? booksData.totalCount : 0}</p>
-        <button 
-          onClick={() => queryClient.invalidateQueries({ queryKey: ['userBooks'] })}
-          className="mt-2 px-3 py-1 bg-blue-500 text-white rounded text-sm"
-        >
-          Refresh Data
-        </button>
-      </div>
       
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
@@ -248,7 +219,7 @@ const Bookshelf = () => {
                   key={book.id}
                   variants={bookVariants}
                   onClick={() => handleBookClick(book.id)}
-                  className="cursor-pointer hover:scale-[1.02] transition-transform duration-300"
+                  className="cursor-pointer transition-transform duration-300"
                   whileHover={{ y: -5 }}
                 >
                   <BookCard book={book} view={view} />

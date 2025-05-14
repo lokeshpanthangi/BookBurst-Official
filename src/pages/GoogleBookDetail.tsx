@@ -2,11 +2,13 @@ import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { getBookDetails } from "@/services/googleBooksService";
 import { Book } from "@/types/book";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Bookmark, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 
 const GoogleBookDetail = () => {
   // Get book ID from URL parameter
@@ -14,6 +16,12 @@ const GoogleBookDetail = () => {
   const [book, setBook] = useState<Book | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
+  const { user } = useAuth();
+  
+  // State for modal functionality
+  const [showAddToBookshelfModal, setShowAddToBookshelfModal] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
   
   useEffect(() => {
     const fetchBookDetails = async () => {
@@ -118,6 +126,50 @@ const GoogleBookDetail = () => {
             alt={book.title} 
             className="w-48 h-auto rounded-md shadow-md object-cover"
           />
+          
+          {/* Action Buttons */}
+          <div className="mt-4 space-y-2">
+            {/* Add to Bookshelf Button */}
+            <Button 
+              className="w-full flex items-center justify-center gap-2" 
+              onClick={() => {
+                if (user) {
+                  setShowAddToBookshelfModal(true);
+                  // In a real implementation, this would open the AddToBookshelfModal
+                } else {
+                  toast({
+                    title: "Authentication required",
+                    description: "Please sign in to add books to your bookshelf",
+                    variant: "destructive"
+                  });
+                }
+              }}
+            >
+              <Bookmark size={16} />
+              Add to Bookshelf
+            </Button>
+            
+            {/* Review Button */}
+            <Button 
+              className="w-full flex items-center justify-center gap-2"
+              variant="outline"
+              onClick={() => {
+                if (user) {
+                  setShowReviewModal(true);
+                  // In a real implementation, this would open the ReviewModal
+                } else {
+                  toast({
+                    title: "Authentication required",
+                    description: "Please sign in to write a review",
+                    variant: "destructive"
+                  });
+                }
+              }}
+            >
+              <MessageSquare size={16} />
+              Write Review
+            </Button>
+          </div>
         </div>
 
         {/* Book Info */}

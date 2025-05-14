@@ -75,96 +75,161 @@ export const useUserBooks = (filters: BookshelfFilters = {}, page: number = 0, p
     queryFn: async () => {
       if (!user) throw new Error("User must be authenticated");
       
-      let query = supabase
-        .from('user_books')
-        .select(`
-          *,
-          books(*)
-        `, { count: 'exact' })
-        .eq('user_id', user.id);
-      
-      // Apply status filter
-      if (filters.status && filters.status !== 'all') {
-        query = query.eq('status', filters.status);
-      }
-      
-      // Apply shelf filter
-      if (filters.shelf) {
-        query = query
-          .select(`
-            *,
-            books(*),
-            bookshelf_books!inner(bookshelf_id)
-          `)
-          .eq('bookshelf_books.bookshelf_id', filters.shelf);
-      }
-      
-      // Apply genre filter logic improved
-      if (filters.genre && filters.genre.length > 0) {
-        // For genre filtering, we'll need to handle it post-query
-        // as it requires more complex joins
-      }
-      
-      // Apply search filter
-      if (filters.search) {
-        const searchTerm = `%${filters.search.toLowerCase()}%`;
-        query = query.or(`title.ilike.${searchTerm},author.ilike.${searchTerm}`);
-      }
-      
-      // Apply sorting
-      if (filters.sort) {
-        switch (filters.sort) {
-          case 'title':
-            query = query.order('books.title');
-            break;
-          case 'author':
-            query = query.order('books.author');
-            break;
-          case 'dateAdded':
-            query = query.order('created_at', { ascending: false });
-            break;
-          case 'rating':
-            query = query.order('rating', { ascending: false });
-            break;
-          case 'recentlyUpdated':
-            query = query.order('updated_at', { ascending: false });
-            break;
+      try {
+        // First, get all user_books entries for this user
+        let query = supabase
+          .from('user_books')
+          .select('*', { count: 'exact' })
+          .eq('user_id', user.id);
+        
+        // Apply status filter
+        if (filters.status && filters.status !== 'all') {
+          query = query.eq('status', filters.status);
         }
-      } else {
-        // Default sorting
-        query = query.order('books.title');
+        
+        // Apply shelf filter
+        if (filters.shelf) {
+          query = query
+            .select('*, bookshelf_books!inner(bookshelf_id)')
+            .eq('bookshelf_books.bookshelf_id', filters.shelf);
+        }
+        
+        // Apply sorting
+        if (filters.sort) {
+          switch (filters.sort) {
+            case 'dateAdded':
+              query = query.order('created_at', { ascending: false });
+              break;
+            case 'rating':
+              query = query.order('rating', { ascending: false });
+              break;
+            case 'recentlyUpdated':
+              query = query.order('updated_at', { ascending: false });
+              break;
+            default:
+              // For title and author, we'll sort after fetching the books
+              break;
+          }
+        } else {
+          // Default sorting by created_at
+          query = query.order('created_at', { ascending: false });
+        }
+        
+        // Apply pagination
+        query = query.range(page * pageSize, (page + 1) * pageSize - 1);
+        
+        const { data: userBooksData, error: userBooksError, count } = await query;
+        
+        if (userBooksError) {
+          console.error('Error fetching user_books:', userBooksError);
+          throw userBooksError;
+        }
+        
+        console.log('User books data:', userBooksData);
+        
+        if (!userBooksData || userBooksData.length === 0) {
+          return { books: [], totalCount: 0 };
+        }
+        
+        // Extract book IDs from user_books
+        const bookIds = userBooksData.map(item => item.book_id);
+        
+        // Fetch the actual books
+        const { data: booksData, error: booksError } = await supabase
+          .from('books')
+          .select('*')
+          .in('id', bookIds);
+        
+        if (booksError) {
+          console.error('Error fetching books:', booksError);
+          throw booksError;
+        }
+        
+        console.log('Books data:', booksData);
+        
+        // Create a map of book data by ID for easy lookup
+        const booksMap = {};
+        booksData.forEach(book => {
+          booksMap[book.id] = book;
+        });
+        
+        // Combine user_books and books data
+        const userBooks = userBooksData.map(userBook => {
+          const book = booksMap[userBook.book_id];
+          
+          if (!book) {
+            console.warn(`Book not found for ID: ${userBook.book_id}`);
+            return null;
+          }
+          
+          return {
+            id: book.id,
+            title: book.title,
+            author: book.author,
+            coverImage: book.cover_image || '',
+            description: book.description || '',
+            publisher: book.publisher,
+            publishedDate: book.published_date,
+            isbn: book.isbn,
+            pageCount: book.page_count,
+            language: book.language,
+            status: userBook.status,
+            startDate: userBook.start_date,
+            finishDate: userBook.finish_date,
+            userRating: userBook.rating,
+            progress: userBook.progress,
+            notes: userBook.notes,
+            userBookId: userBook.id,
+            genres: [], // We'll handle genres separately if needed
+            averageRating: book.average_rating || 0,
+            ratingsCount: book.ratings_count || 0
+          };
+        }).filter(book => book !== null);
+        
+        return { 
+          books: userBooks,
+          totalCount: count || 0
+        };
+      } catch (error) {
+        console.error('Error in useUserBooks:', error);
+        throw error;
       }
-      
-      // Apply pagination
-      query = query.range(page * pageSize, (page + 1) * pageSize - 1);
-      
-      const { data, error, count } = await query;
-      
-      if (error) throw error;
       
       // Transform the data to match our UserBook type
-      const userBooks: UserBook[] = data.map((item: any) => ({
-        id: item.books?.id,
-        title: item.books?.title,
-        author: item.books?.author,
-        coverImage: item.books?.cover_image || '',
-        description: item.books?.description || '',
-        publisher: item.books?.publisher,
-        publishedDate: item.books?.published_date,
-        isbn: item.books?.isbn,
-        pageCount: item.books?.page_count,
-        language: item.books?.language,
-        status: item.status,
-        startDate: item.start_date,
-        finishDate: item.finish_date,
-        userRating: item.rating,
-        progress: item.progress,
-        notes: item.notes,
-        userBookId: item.id,
-        genres: item.books?.book_genres?.map((bg: any) => bg.genres?.name) || [],
-        averageRating: item.books?.average_rating,
-        ratingsCount: item.books?.ratings_count
-      }));
+      const userBooks: UserBook[] = data.map((item: any) => {
+        // Log each item for debugging
+        console.log('Processing item:', item);
+        
+        // Handle case where books might be null
+        if (!item.books) {
+          console.warn('Book data missing for item:', item);
+          // Fetch the book data separately if needed
+          return null;
+        }
+        
+        return {
+          id: item.books.id,
+          title: item.books.title,
+          author: item.books.author,
+          coverImage: item.books.cover_image || '',
+          description: item.books.description || '',
+          publisher: item.books.publisher,
+          publishedDate: item.books.published_date,
+          isbn: item.books.isbn,
+          pageCount: item.books.page_count,
+          language: item.books.language,
+          status: item.status,
+          startDate: item.start_date,
+          finishDate: item.finish_date,
+          userRating: item.rating,
+          progress: item.progress,
+          notes: item.notes,
+          userBookId: item.id,
+          genres: [],  // We'll handle genres separately if needed
+          averageRating: item.books.average_rating || 0,
+          ratingsCount: item.books.ratings_count || 0
+        };
+      }).filter(book => book !== null);  // Filter out any null entries
       
       return { 
         books: userBooks,

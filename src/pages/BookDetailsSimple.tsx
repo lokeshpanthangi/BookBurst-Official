@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Bookmark, MessageSquare } from "lucide-react";
 import { UserBook } from "@/types/book";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -138,6 +138,28 @@ const BookDetailsSimple = () => {
             alt={book.title} 
             className="w-48 h-auto rounded-md shadow-md"
           />
+          
+          {/* Action Buttons */}
+          <div className="mt-4 space-y-2">
+            {/* Add to Bookshelf Button */}
+            <Button 
+              className="w-full flex items-center justify-center gap-2" 
+              onClick={() => alert('Add to Bookshelf functionality will be implemented')}
+            >
+              <Bookmark size={16} />
+              Add to Bookshelf
+            </Button>
+            
+            {/* Review Button */}
+            <Button 
+              className="w-full flex items-center justify-center gap-2"
+              variant="outline"
+              onClick={() => alert('Write Review functionality will be implemented')}
+            >
+              <MessageSquare size={16} />
+              Write Review
+            </Button>
+          </div>
         </div>
 
         {/* Book Info */}

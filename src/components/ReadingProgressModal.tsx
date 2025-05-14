@@ -25,10 +25,11 @@ import { format } from "date-fns";
 import { motion } from "framer-motion";
 
 interface ReadingProgressModalProps {
-  book: UserBook;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onUpdateProgress: (bookId: string, progress: number, startDate?: string) => void;
+  bookId: string;
+  isOpen: boolean;
+  onClose: () => void;
+  initialProgress: number;
+  onProgressUpdate: (progress: number) => void;
 }
 
 const ReadingProgressModal = ({ 

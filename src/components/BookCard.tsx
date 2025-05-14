@@ -34,32 +34,32 @@ const BookCard = ({ book, view }: BookCardProps) => {
   return (
     <div 
       className={cn(
-        "book-card group", 
-        view === "grid" ? "flex flex-col" : "flex flex-row items-start gap-4"
+        "book-card group border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300", 
+        view === "grid" ? "flex flex-col h-[400px]" : "flex flex-row items-start gap-4 h-[200px]"
       )}
     >
       <div 
         className={cn(
           "book-card-image overflow-hidden", 
-          view === "grid" ? "w-full" : "w-24 md:w-32"
+          view === "grid" ? "w-full h-[250px]" : "w-24 md:w-32 h-full"
         )}
       >
         <Link to={`/book/${book.id}`} className="block w-full h-full">
           <BookCover 
             src={book.coverImage} 
             alt={book.title}
-            className="w-full h-full transform transition-transform duration-500 group-hover:scale-105"
+            className="w-full h-full object-cover transform transition-transform duration-500 group-hover:scale-105"
           />
         </Link>
       </div>
       
       <div 
         className={cn(
-          "p-3 flex flex-col", 
-          view === "grid" ? "" : "flex-1"
+          "p-4 flex flex-col", 
+          view === "grid" ? "flex-1" : "flex-1"
         )}
       >
-        <Link to={`/book/${book.id}`} className="mb-1">
+        <Link to={`/book/${book.id}`} className="mb-2">
           <h3 
             className={cn(
               "font-semibold text-foreground line-clamp-2 group-hover:text-primary transition-colors duration-200",
@@ -70,7 +70,7 @@ const BookCard = ({ book, view }: BookCardProps) => {
           </h3>
         </Link>
         
-        <p className="text-xs text-muted-foreground mb-2">{book.author}</p>
+        <p className="text-xs text-muted-foreground mb-3 line-clamp-1">{book.author}</p>
         
         <div className="flex items-center space-x-2 mb-2">
           <StarRating 

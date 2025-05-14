@@ -6,19 +6,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Edit, Bookmark, Star, MessageSquare, Share2, Heart, Lock, Unlock, BookOpen, CheckCircle, BookMarked, X } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { ArrowLeft, Edit, Bookmark, Star, MessageSquare, Share2, Heart, Lock, Unlock } from "lucide-react";
+import { motion } from "framer-motion";
 import ReadingProgressModal from "@/components/ReadingProgressModal";
-import AddToBookshelfModal from "@/components/AddToBookshelfModal";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useUpdateUserBook, useAddUserBook, useBook } from "@/services/bookService";
+import { useUpdateUserBook, useAddUserBook } from "@/services/bookService";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Rating } from "@/components/Rating";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 
 const BookDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -26,60 +24,95 @@ const BookDetail = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   
+  const [book, setBook] = useState<any>(null);
   const [userBook, setUserBook] = useState<any>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isInCollection, setIsInCollection] = useState(false);
   const [notes, setNotes] = useState("");
   const [newReview, setNewReview] = useState("");
   const [reviewRating, setReviewRating] = useState(0);
   const [isPublic, setIsPublic] = useState(true);
   const [progressModalOpen, setProgressModalOpen] = useState(false);
-  const [addToBookshelfModalOpen, setAddToBookshelfModalOpen] = useState(false);
-  const [reviewModalOpen, setReviewModalOpen] = useState(false);
-  const [userRating, setUserRating] = useState(0);
   const [animateEntry, setAnimateEntry] = useState(true);
-  
-  // Use the useBook hook to fetch real book data
-  const { data: book, isLoading, isError } = useBook(id || "");
   
   const updateUserBook = useUpdateUserBook();
   const addUserBook = useAddUserBook();
 
   useEffect(() => {
-    // Set animation entry state
-    setAnimateEntry(true);
-    
-    // Check if this book is in the user's collection
-    const checkUserCollection = async () => {
-      if (!id || !user) return;
-      
-      try {
-        const { data: userBookData, error: userBookError } = await supabase
-          .from('user_books')
-          .select('*')
-          .eq('book_id', id)
-          .eq('user_id', user.id)
-          .maybeSingle();
-        
-        if (userBookError) {
-          console.error('Error checking user book:', userBookError);
-        } else if (userBookData) {
-          setUserBook(userBookData);
-          setIsInCollection(true);
-          setNotes(userBookData.notes || '');
-          setIsPublic(userBookData.is_public !== false); // Default to true if not set
-          if (userBookData.rating) setUserRating(userBookData.rating);
-        }
-      } catch (error) {
-        console.error('Error checking user collection:', error);
-      }
-    };
-    
-    // Fetch reviews for this book
-    const fetchReviews = async () => {
+    const fetchBookData = async () => {
       if (!id) return;
       
+      setIsLoading(true);
+      setAnimateEntry(true);
+      
       try {
+        // Fetch the book details
+        const { data: bookData, error: bookError } = await supabase
+          .from('books')
+          .select('*')
+          .eq('id', id)
+          .single();
+        
+        if (bookError) {
+          console.error('Error fetching book:', bookError);
+          toast({
+            title: 'Error',
+            description: 'Failed to load book details',
+            variant: 'destructive'
+          });
+          return;
+        }
+        
+        if (!bookData) {
+          toast({
+            title: 'Book not found',
+            description: 'The requested book could not be found',
+            variant: 'destructive'
+          });
+          navigate('/bookshelf');
+          return;
+        }
+        
+        // Format the book data
+        const formattedBook = {
+          id: bookData.id,
+          title: bookData.title,
+          author: bookData.author,
+          coverImage: bookData.cover_image || 'https://images.unsplash.com/photo-1589998059171-988d887df646?auto=format&fit=crop&q=80&w=300',
+          description: bookData.description || '',
+          publishedDate: bookData.published_date,
+          publisher: bookData.publisher,
+          pageCount: bookData.page_count,
+          isbn: bookData.isbn,
+          language: bookData.language,
+          averageRating: bookData.average_rating || 0,
+          ratingsCount: bookData.ratings_count || 0,
+          genres: bookData.genres || []
+        };
+        
+        setBook(formattedBook);
+        
+        // If user is logged in, check if this book is in their collection
+        if (user) {
+          const { data: userBookData, error: userBookError } = await supabase
+            .from('user_books')
+            .select('*')
+            .eq('book_id', id)
+            .eq('user_id', user.id)
+            .maybeSingle();
+          
+          if (userBookError) {
+            console.error('Error checking user book:', userBookError);
+          } else if (userBookData) {
+            setUserBook(userBookData);
+            setIsInCollection(true);
+            setNotes(userBookData.notes || '');
+            setIsPublic(userBookData.is_public !== false); // Default to true if not set
+          }
+        }
+        
+        // Fetch reviews for this book
         const { data: reviewsData, error: reviewsError } = await supabase
           .from('reviews')
           .select('*, profiles(*)')
@@ -107,60 +140,29 @@ const BookDetail = () => {
           setReviews(formattedReviews);
         }
       } catch (error) {
-        console.error('Error fetching reviews:', error);
+        console.error('Error in fetchBookData:', error);
+        toast({
+          title: 'Error',
+          description: 'An unexpected error occurred',
+          variant: 'destructive'
+        });
+      } finally {
+        setIsLoading(false);
       }
     };
     
-    // If there's an error with the book data, show a toast
-    if (isError) {
-      toast({
-        title: 'Error',
-        description: 'Failed to load book details',
-        variant: 'destructive'
-      });
-    }
-    
-    // If the book doesn't exist, navigate back to bookshelf
-    if (!isLoading && !book && !isError) {
-      toast({
-        title: 'Book not found',
-        description: 'The requested book could not be found',
-        variant: 'destructive'
-      });
-      navigate('/bookshelf');
-    }
-    
-    checkUserCollection();
-    fetchReviews();
-  }, [id, user, book, isLoading, isError, navigate, toast]);
+    fetchBookData();
+  }, [id, user, navigate, toast]);
 
-  const openAddToBookshelfModal = () => {
-    if (!book || !user) return;
-    setAddToBookshelfModalOpen(true);
-  };
-  
-  const addToBookshelf = async (bookData: {
-    status: string;
-    rating?: number;
-    progress?: number;
-    startDate?: string;
-    finishDate?: string;
-    notes?: string;
-    isPublic: boolean;
-  }) => {
+  const addToBookshelf = async () => {
     if (!book || !user) return;
     
     try {
       const newUserBook = {
         user_id: user.id,
         book_id: book.id,
-        status: bookData.status,
-        rating: bookData.rating,
-        progress: bookData.progress,
-        start_date: bookData.startDate,
-        finish_date: bookData.finishDate,
-        notes: bookData.notes,
-        is_public: bookData.isPublic,
+        status: 'want-to-read',
+        is_public: isPublic,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -176,18 +178,11 @@ const BookDetail = () => {
       if (data) {
         setUserBook(data);
         setIsInCollection(true);
-        setNotes(data.notes || '');
-        if (data.is_public !== undefined) {
-          setIsPublic(data.is_public);
-        }
-        if (data.rating) setUserRating(data.rating);
         
         toast({
           title: 'Book added',
           description: 'Book has been added to your bookshelf',
         });
-        
-        setAddToBookshelfModalOpen(false);
       }
     } catch (error) {
       console.error('Error adding book:', error);
@@ -209,18 +204,14 @@ const BookDetail = () => {
         updated_at: new Date().toISOString()
       };
       
-      // If status is 'currently-reading' and there's no start date, set it to today
+      // If status is 'currently-reading' and there's no start date, add one
       if (status === 'currently-reading' && !updatedUserBook.start_date) {
         updatedUserBook.start_date = new Date().toISOString();
       }
       
-      // If status is 'finished' and there's no finish date, set it to today
+      // If status is 'finished' and there's no finish date, add one
       if (status === 'finished' && !updatedUserBook.finish_date) {
         updatedUserBook.finish_date = new Date().toISOString();
-        // If there's no progress or progress < 100, set it to 100%
-        if (!updatedUserBook.progress || updatedUserBook.progress < 100) {
-          updatedUserBook.progress = 100;
-        }
       }
       
       const { data, error } = await supabase
@@ -237,7 +228,7 @@ const BookDetail = () => {
         
         toast({
           title: 'Status updated',
-          description: `Book is now marked as "${status.replace('-', ' ')}"`,
+          description: `Book moved to "${status.replace('-', ' ')}"`
         });
       }
     } catch (error) {
@@ -271,18 +262,17 @@ const BookDetail = () => {
       
       if (data) {
         setUserBook(data);
-        setUserRating(rating);
         
         toast({
           title: 'Rating updated',
-          description: `You rated this book ${rating} stars`,
+          description: `You rated this book ${rating} stars`
         });
       }
     } catch (error) {
       console.error('Error updating rating:', error);
       toast({
         title: 'Error',
-        description: 'Failed to update book rating',
+        description: 'Failed to update rating',
         variant: 'destructive'
       });
     }
@@ -312,7 +302,7 @@ const BookDetail = () => {
         
         toast({
           title: 'Notes saved',
-          description: 'Your notes have been saved',
+          description: 'Your notes have been saved'
         });
       }
     } catch (error) {
@@ -324,28 +314,17 @@ const BookDetail = () => {
       });
     }
   };
-  
-  const handleUpdateProgress = async (progress: number) => {
+
+  const handleUpdateProgress = async (bookId: string, progress: number, startDate?: string) => {
     if (!book || !userBook) return;
     
     try {
       const updatedUserBook = {
         ...userBook,
         progress,
+        start_date: startDate || userBook.start_date,
         updated_at: new Date().toISOString()
       };
-      
-      // If progress is 100% and status is 'currently-reading', ask if they want to mark as finished
-      if (progress === 100 && userBook.status === 'currently-reading') {
-        // For now, we'll just automatically update the status to finished
-        updatedUserBook.status = 'finished';
-        updatedUserBook.finish_date = new Date().toISOString();
-      }
-      
-      // If there's no start date, set it to today
-      if (!updatedUserBook.start_date && progress > 0) {
-        updatedUserBook.start_date = new Date().toISOString();
-      }
       
       const { data, error } = await supabase
         .from('user_books')
@@ -358,18 +337,19 @@ const BookDetail = () => {
       
       if (data) {
         setUserBook(data);
-        setProgressModalOpen(false);
         
         toast({
           title: 'Progress updated',
-          description: `Reading progress updated to ${progress}%`,
+          description: `Progress updated to ${progress}%`
         });
+        
+        setProgressModalOpen(false);
       }
     } catch (error) {
       console.error('Error updating progress:', error);
       toast({
         title: 'Error',
-        description: 'Failed to update reading progress',
+        description: 'Failed to update progress',
         variant: 'destructive'
       });
     }
@@ -400,7 +380,7 @@ const BookDetail = () => {
         
         toast({
           title: 'Privacy updated',
-          description: `Book is now ${isPublic ? 'public' : 'private'}`,
+          description: isPublic ? 'Book is now public' : 'Book is now private'
         });
       }
     } catch (error) {
@@ -411,11 +391,6 @@ const BookDetail = () => {
         variant: 'destructive'
       });
     }
-  };
-  
-  const openReviewModal = () => {
-    if (!book || !user || !isInCollection) return;
-    setReviewModalOpen(true);
   };
   
   const submitReview = async () => {
@@ -459,12 +434,6 @@ const BookDetail = () => {
         setReviews([newFormattedReview, ...reviews]);
         setNewReview('');
         setReviewRating(0);
-        setReviewModalOpen(false);
-        
-        // Also update the user's rating for the book if they don't have one yet
-        if (!userBook?.rating && userBook) {
-          handleRatingChange(reviewRating);
-        }
         
         toast({
           title: 'Review submitted',
@@ -478,37 +447,6 @@ const BookDetail = () => {
         description: 'Failed to submit review',
         variant: 'destructive'
       });
-    }
-  };
-  
-  // Helper function to get the status badge with appropriate color
-  const getStatusBadge = () => {
-    if (!userBook) return null;
-    
-    switch (userBook.status) {
-      case 'currently-reading':
-        return (
-          <Badge className="bg-amber-500 hover:bg-amber-600 flex items-center gap-1">
-            <BookOpen className="h-3 w-3" />
-            <span>Currently Reading</span>
-          </Badge>
-        );
-      case 'want-to-read':
-        return (
-          <Badge className="bg-blue-500 hover:bg-blue-600 flex items-center gap-1">
-            <BookMarked className="h-3 w-3" />
-            <span>Want to Read</span>
-          </Badge>
-        );
-      case 'finished':
-        return (
-          <Badge className="bg-green-500 hover:bg-green-600 flex items-center gap-1">
-            <CheckCircle className="h-3 w-3" />
-            <span>Finished</span>
-          </Badge>
-        );
-      default:
-        return null;
     }
   };
 
@@ -530,17 +468,14 @@ const BookDetail = () => {
       </Button>
       
       {isLoading ? (
-        <div className="space-y-4">
+        <div className="flex flex-col gap-4">
+          <div className="w-1/3 h-8 bg-muted rounded animate-pulse" />
           <div className="flex gap-6">
-            <Skeleton className="h-[225px] w-[150px] rounded-md" />
-            <div className="space-y-2 flex-1">
-              <Skeleton className="h-8 w-3/4" />
-              <Skeleton className="h-4 w-1/2" />
-              <Skeleton className="h-4 w-1/4 mt-2" />
-              <div className="mt-4 space-y-2">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-              </div>
+            <div className="w-[150px] h-[225px] bg-muted rounded animate-pulse" />
+            <div className="flex-1 space-y-4">
+              <div className="w-full h-4 bg-muted rounded animate-pulse" />
+              <div className="w-3/4 h-4 bg-muted rounded animate-pulse" />
+              <div className="w-1/2 h-4 bg-muted rounded animate-pulse" />
             </div>
           </div>
         </div>
@@ -560,37 +495,21 @@ const BookDetail = () => {
                 className="w-[150px] h-[225px] object-cover rounded-md shadow-md" 
               />
               
-              {/* Action Buttons */}
-              <div className="mt-4 space-y-2">
-                {/* Add to Bookshelf Button (Always shown) */}
+              {/* Add to Bookshelf Button (Only shown when not in collection) */}
+              {user && !isInCollection && (
                 <Button 
-                  className="w-full flex items-center justify-center gap-2" 
-                  onClick={openAddToBookshelfModal}
+                  className="w-full mt-4 flex items-center justify-center gap-2" 
+                  onClick={addToBookshelf}
                 >
                   <Bookmark size={16} />
                   Add to Bookshelf
                 </Button>
-                
-                {/* Review Button */}
-                <Button 
-                  className="w-full flex items-center justify-center gap-2"
-                  variant="outline"
-                  onClick={openReviewModal}
-                >
-                  <MessageSquare size={16} />
-                  Write Review
-                </Button>
-              </div>
+              )}
             </div>
             
             {/* Book Details */}
             <div className="flex-1">
-              <div className="flex flex-wrap items-center gap-2 mb-2">
-                <h1 className="text-2xl font-bold">{book.title}</h1>
-                {/* Status Badge */}
-                {isInCollection && getStatusBadge()}
-              </div>
-              
+              <h1 className="text-2xl font-bold">{book.title}</h1>
               <p className="text-lg text-muted-foreground">{book.author}</p>
               
               {/* Book Rating */}
@@ -601,18 +520,6 @@ const BookDetail = () => {
                 </span>
               </div>
               
-              {/* User Rating (Only shown when in collection) */}
-              {user && isInCollection && (
-                <div className="flex items-center gap-2 mt-2">
-                  <span className="text-sm font-medium">My Rating:</span>
-                  <Rating 
-                    value={userBook?.rating || 0} 
-                    onChange={handleRatingChange}
-                    className="animate-pulse-on-hover" 
-                  />
-                </div>
-              )}
-              
               {/* Book Status Controls (Only shown when in collection) */}
               {user && isInCollection && (
                 <div className="mt-4 space-y-4">
@@ -621,27 +528,21 @@ const BookDetail = () => {
                       variant={userBook?.status === 'want-to-read' ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => handleStatusChange('want-to-read')}
-                      className="flex items-center gap-1"
                     >
-                      <BookMarked size={14} />
                       Want to Read
                     </Button>
                     <Button 
                       variant={userBook?.status === 'currently-reading' ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => handleStatusChange('currently-reading')}
-                      className="flex items-center gap-1"
                     >
-                      <BookOpen size={14} />
                       Currently Reading
                     </Button>
                     <Button 
                       variant={userBook?.status === 'finished' ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => handleStatusChange('finished')}
-                      className="flex items-center gap-1"
                     >
-                      <CheckCircle size={14} />
                       Finished
                     </Button>
                   </div>
@@ -650,11 +551,9 @@ const BookDetail = () => {
                   {userBook?.status === 'currently-reading' && (
                     <div className="flex items-center gap-2">
                       <div className="flex-1 bg-muted rounded-full h-2.5 overflow-hidden">
-                        <motion.div 
-                          className="bg-amber-500 h-full" 
-                          initial={{ width: 0 }}
-                          animate={{ width: `${userBook?.progress || 0}%` }}
-                          transition={{ duration: 0.5, ease: "easeOut" }}
+                        <div 
+                          className="bg-primary h-full" 
+                          style={{ width: `${userBook?.progress || 0}%` }}
                         />
                       </div>
                       <span className="text-sm font-medium">{userBook?.progress || 0}%</span>
@@ -667,6 +566,15 @@ const BookDetail = () => {
                       </Button>
                     </div>
                   )}
+                  
+                  {/* User Rating */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">My Rating:</span>
+                    <Rating 
+                      value={userBook?.rating || 0} 
+                      onChange={handleRatingChange} 
+                    />
+                  </div>
                   
                   {/* Privacy Setting */}
                   <div className="flex items-center gap-2">
@@ -694,12 +602,6 @@ const BookDetail = () => {
             </div>
           </div>
           
-          {/* Book Description */}
-          <div className="mt-8">
-            <h2 className="text-xl font-semibold mb-2">Description</h2>
-            <p className="text-muted-foreground whitespace-pre-line">{book.description}</p>
-          </div>
-          
           {/* Tabs Section */}
           <div className="mt-8">
             <Tabs defaultValue="details">
@@ -711,41 +613,55 @@ const BookDetail = () => {
                 <TabsTrigger value="reviews">Reviews</TabsTrigger>
               </TabsList>
               
-              <TabsContent value="details">
+              <TabsContent value="details" className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <h3 className="text-lg font-medium mb-2">Book Details</h3>
-                    <ul className="space-y-2">
-                      <li className="flex justify-between">
-                        <span className="text-muted-foreground">Publisher</span>
-                        <span className="font-medium">{book.publisher || 'Unknown'}</span>
-                      </li>
-                      <li className="flex justify-between">
-                        <span className="text-muted-foreground">Published Date</span>
-                        <span className="font-medium">{book.publishedDate || 'Unknown'}</span>
-                      </li>
-                      <li className="flex justify-between">
-                        <span className="text-muted-foreground">Pages</span>
-                        <span className="font-medium">{book.pageCount || 'Unknown'}</span>
-                      </li>
-                      <li className="flex justify-between">
-                        <span className="text-muted-foreground">ISBN</span>
-                        <span className="font-medium">{book.isbn || 'Unknown'}</span>
-                      </li>
-                      <li className="flex justify-between">
-                        <span className="text-muted-foreground">Language</span>
-                        <span className="font-medium">{book.language || 'Unknown'}</span>
-                      </li>
-                    </ul>
+                    <h3 className="text-lg font-medium">About this book</h3>
+                    <p className="mt-2 text-muted-foreground">{book.description || "No description available."}</p>
                   </div>
                   
-                  <div>
-                    <h3 className="text-lg font-medium mb-2">Categories</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {book.categories?.map((category, index) => (
-                        <Badge key={index} variant="outline">{category}</Badge>
-                      )) || <span className="text-muted-foreground">No categories available</span>}
+                  <div className="space-y-3">
+                    <h3 className="text-lg font-medium">Book Information</h3>
+                    
+                    <div>
+                      <span className="text-sm font-medium">Author:</span>
+                      <span className="text-sm text-muted-foreground ml-2">{book.author}</span>
                     </div>
+                    
+                    {book.publishedDate && (
+                      <div>
+                        <span className="text-sm font-medium">Published:</span>
+                        <span className="text-sm text-muted-foreground ml-2">{book.publishedDate}</span>
+                      </div>
+                    )}
+                    
+                    {book.publisher && (
+                      <div>
+                        <span className="text-sm font-medium">Publisher:</span>
+                        <span className="text-sm text-muted-foreground ml-2">{book.publisher}</span>
+                      </div>
+                    )}
+                    
+                    {book.pageCount && (
+                      <div>
+                        <span className="text-sm font-medium">Pages:</span>
+                        <span className="text-sm text-muted-foreground ml-2">{book.pageCount}</span>
+                      </div>
+                    )}
+                    
+                    {book.isbn && (
+                      <div>
+                        <span className="text-sm font-medium">ISBN:</span>
+                        <span className="text-sm text-muted-foreground ml-2">{book.isbn}</span>
+                      </div>
+                    )}
+                    
+                    {book.genres && book.genres.length > 0 && (
+                      <div>
+                        <span className="text-sm font-medium">Genres:</span>
+                        <span className="text-sm text-muted-foreground ml-2">{book.genres.join(", ")}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </TabsContent>
@@ -755,7 +671,7 @@ const BookDetail = () => {
                   <div className="space-y-4">
                     <h3 className="text-lg font-medium">My Notes</h3>
                     <Textarea
-                      placeholder="Add your private notes about this book..."
+                      placeholder="Add your private notes about this book here..."
                       className="min-h-[200px]"
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
@@ -770,31 +686,38 @@ const BookDetail = () => {
               
               <TabsContent value="reviews">
                 <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-medium">Reviews</h3>
-                    {user && isInCollection && (
+                  <h3 className="text-lg font-medium">Reviews</h3>
+                  
+                  {/* Add Review Form */}
+                  {user && (
+                    <div className="bg-muted/30 p-4 rounded-lg space-y-3 border">
+                      <h4 className="font-medium">Write a Review</h4>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">Rating:</span>
+                        <Rating value={reviewRating} onChange={setReviewRating} />
+                      </div>
+                      <Textarea
+                        placeholder="Share your thoughts about this book..."
+                        className="min-h-[100px]"
+                        value={newReview}
+                        onChange={(e) => setNewReview(e.target.value)}
+                      />
                       <Button 
-                        onClick={openReviewModal} 
-                        size="sm"
-                        className="flex items-center gap-1"
+                        onClick={submitReview} 
+                        disabled={!newReview || reviewRating === 0}
+                        className="flex items-center gap-2"
                       >
-                        <MessageSquare size={14} />
-                        Write Review
+                        <MessageSquare size={16} />
+                        Submit Review
                       </Button>
-                    )}
-                  </div>
+                    </div>
+                  )}
                   
                   {/* Reviews List */}
                   {reviews.length > 0 ? (
                     <div className="space-y-4">
                       {reviews.map((review) => (
-                        <motion.div 
-                          key={review.id} 
-                          className="bg-background p-4 rounded-lg border space-y-2"
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.3 }}
-                        >
+                        <div key={review.id} className="bg-background p-4 rounded-lg border space-y-2">
                           <div className="flex justify-between items-start">
                             <div className="flex items-center gap-2">
                               <Avatar>
@@ -821,96 +744,25 @@ const BookDetail = () => {
                               <span className="text-xs">Share</span>
                             </Button>
                           </div>
-                        </motion.div>
+                        </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="text-center py-8">
-                      <p className="text-muted-foreground mb-4">No reviews yet.</p>
-                      {user && isInCollection ? (
-                        <Button onClick={openReviewModal} variant="outline">
-                          Be the first to review this book
-                        </Button>
-                      ) : user ? (
-                        <p className="text-sm text-muted-foreground">Add this book to your bookshelf to write a review</p>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">Sign in to write a review</p>
-                      )}
-                    </div>
+                    <p className="text-muted-foreground">No reviews yet. Be the first to review this book!</p>
                   )}
                 </div>
               </TabsContent>
             </Tabs>
           </div>
           
-          {/* Reading Progress Modal */}
-          {book && (
-            <ReadingProgressModal
-              isOpen={progressModalOpen}
-              onClose={() => setProgressModalOpen(false)}
-              bookId={book.id}
-              initialProgress={userBook?.progress || 0}
-              onProgressUpdate={handleUpdateProgress}
-            />
-          )}
-          
-          {/* Add to Bookshelf Modal */}
-          {book && (
-            <AddToBookshelfModal
-              isOpen={addToBookshelfModalOpen}
-              onClose={() => setAddToBookshelfModalOpen(false)}
-              book={book}
-              onAdd={addToBookshelf}
-            />
-          )}
-          
-          {/* Review Modal */}
-          {book && (
-            <div className={`fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 ${reviewModalOpen ? 'block' : 'hidden'}`}>
-              <motion.div 
-                className="bg-background rounded-lg shadow-lg w-full max-w-md overflow-hidden"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: reviewModalOpen ? 1 : 0, scale: reviewModalOpen ? 1 : 0.9 }}
-                transition={{ duration: 0.2 }}
-              >
-                <div className="p-6 space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-medium">Write a Review</h3>
-                    <Button variant="ghost" size="sm" onClick={() => setReviewModalOpen(false)}>
-                      <X />
-                      <span className="sr-only">Close</span>
-                    </Button>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">Rating:</span>
-                      <Rating value={reviewRating} onChange={setReviewRating} />
-                    </div>
-                    
-                    <Textarea
-                      placeholder="Share your thoughts about this book..."
-                      className="min-h-[150px]"
-                      value={newReview}
-                      onChange={(e) => setNewReview(e.target.value)}
-                    />
-                    
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline" onClick={() => setReviewModalOpen(false)}>Cancel</Button>
-                      <Button 
-                        onClick={submitReview} 
-                        disabled={!newReview || reviewRating === 0}
-                        className="flex items-center gap-2"
-                      >
-                        <MessageSquare size={16} />
-                        Submit Review
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            </div>
-          )}
+          <ReadingProgressModal
+            isOpen={progressModalOpen}
+            onClose={() => setProgressModalOpen(false)}
+            bookId={book.id}
+            currentProgress={userBook?.progress || 0}
+            startDate={userBook?.start_date}
+            onUpdateProgress={handleUpdateProgress}
+          />
         </motion.div>
       ) : (
         <div className="text-center py-12">
