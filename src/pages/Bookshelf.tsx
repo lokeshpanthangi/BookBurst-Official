@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import AddBookModal from "@/components/AddBookModal";
+import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   useUserBooks, 
@@ -43,6 +44,7 @@ const Bookshelf = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   
   // Get the default tab from cookies or use "all"
   const [activeTab, setActiveTab] = useState<string>(() => getLastSelectedTab() || "all");
@@ -81,6 +83,13 @@ const Bookshelf = () => {
   };
 
   const handleAddBook = (book: any) => {
+    // If the book has already been added to the database in the modal, don't add it again
+    if (book.alreadyAdded) {
+      // Just refresh the books list
+      queryClient.invalidateQueries({ queryKey: ['userBooks'] });
+      return;
+    }
+    
     const { status = 'want-to-read', progress = 0 } = book;
 
     addUserBook.mutate({
@@ -164,7 +173,7 @@ const Bookshelf = () => {
           onValueChange={setActiveTab} 
           className="mb-6"
         >
-          <TabsList className="w-full grid grid-cols-4 mb-4">
+          <TabsList className="w-full grid grid-cols-4 mb-4 border-none">
             <TabsTrigger value="all">All Books</TabsTrigger>
             <TabsTrigger value="currently-reading">Reading</TabsTrigger>
             <TabsTrigger value="want-to-read">Want to Read</TabsTrigger>
@@ -190,6 +199,23 @@ const Bookshelf = () => {
           </AlertDescription>
         </Alert>
       )}
+      
+      {/* Debug information */}
+      <div className="mb-4 p-4 border border-dashed rounded">
+        <h3 className="font-semibold mb-2">Debug Info:</h3>
+        <p>Loading: {isLoading ? 'Yes' : 'No'}</p>
+        <p>Error: {isError ? 'Yes' : 'No'}</p>
+        <p>User ID: {user?.id || 'Not logged in'}</p>
+        <p>Active Tab: {activeTab}</p>
+        <p>Books Count: {booksData ? booksData.books.length : 0}</p>
+        <p>Total Count: {booksData ? booksData.totalCount : 0}</p>
+        <button 
+          onClick={() => queryClient.invalidateQueries({ queryKey: ['userBooks'] })}
+          className="mt-2 px-3 py-1 bg-blue-500 text-white rounded text-sm"
+        >
+          Refresh Data
+        </button>
+      </div>
       
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">

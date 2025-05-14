@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   Search,
@@ -11,27 +11,67 @@ import {
   X,
   BookOpen,
   Clock,
+  LogOut,
+  Settings,
 } from "lucide-react";
 import ThemeSwitcher from "./ThemeSwitcher";
 import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 
 const Navigation = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { toast } = useToast();
   
   const isActive = (path: string) => {
     return location.pathname === path;
   };
 
-  const navigationItems = [
-    { path: "/bookshelf", icon: <Bookmark className="mr-2 h-4 w-4" />, label: "Bookshelf" },
-    { path: "/explore", icon: <Compass className="mr-2 h-4 w-4" />, label: "Explore" },
-    { path: "/timeline", icon: <Clock className="mr-2 h-4 w-4" />, label: "Timeline" },
-    { path: "/profile", icon: <User className="mr-2 h-4 w-4" />, label: "Profile" },
+  // Define navigation items based on authentication status
+  const authenticatedNavItems = [
+    { path: "/bookshelf", icon: <Bookmark className="mr-2 h-4 w-4" />, label: "Bookshelf", requiresAuth: true },
+    { path: "/explore", icon: <Compass className="mr-2 h-4 w-4" />, label: "Explore", requiresAuth: false },
+    { path: "/timeline", icon: <Clock className="mr-2 h-4 w-4" />, label: "Timeline", requiresAuth: true },
   ];
+  
+  // Filter navigation items based on authentication status
+  const navigationItems = authenticatedNavItems.filter(item => 
+    !item.requiresAuth || (item.requiresAuth && user)
+  );
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
+  };
+  
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      toast({
+        title: "Logged out",
+        description: "You have been successfully logged out",
+      });
+      navigate("/");
+    } catch (error) {
+      console.error("Error logging out:", error);
+      toast({
+        title: "Error",
+        description: "Failed to log out. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -48,13 +88,7 @@ const Navigation = () => {
 
         {/* Desktop Navigation */}
         <div className="hidden md:flex items-center space-x-1">
-          <Button variant="ghost" size="sm" asChild>
-            <Link to="/search">
-              <Search className="h-4 w-4" />
-              <span className="ml-2">Search</span>
-            </Link>
-          </Button>
-          
+          {/* Only show navigation items */}
           {navigationItems.map((item) => (
             <Button
               key={item.path}
@@ -74,6 +108,55 @@ const Navigation = () => {
           ))}
           
           <ThemeSwitcher />
+          
+          {/* Show login/signup buttons if user is not logged in */}
+          {!user ? (
+            <div className="flex items-center space-x-2 ml-2">
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/auth?mode=login">
+                  Login
+                </Link>
+              </Button>
+              <Button size="sm" asChild>
+                <Link to="/auth?mode=signup">
+                  Sign Up
+                </Link>
+              </Button>
+            </div>
+          ) : (
+            /* Profile Dropdown for logged in users */
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="ml-2">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={user.user_metadata?.avatar_url || ''} />
+                    <AvatarFallback>{user.email?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link to="/profile" className="cursor-pointer w-full">
+                    <User className="mr-2 h-4 w-4" />
+                    Profile
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/settings" className="cursor-pointer w-full">
+                    <Settings className="mr-2 h-4 w-4" />
+                    Settings
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Logout
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
 
         {/* Mobile Menu Button */}
@@ -88,13 +171,7 @@ const Navigation = () => {
       {isMenuOpen && (
         <div className="md:hidden bg-card border-t animate-fade-in">
           <div className="container mx-auto py-2 px-4 flex flex-col">
-            <Button variant="ghost" size="sm" asChild className="justify-start">
-              <Link to="/search" onClick={() => setIsMenuOpen(false)}>
-                <Search className="mr-2 h-4 w-4" />
-                Search
-              </Link>
-            </Button>
-            
+            {/* Only show filtered navigation items */}
             {navigationItems.map((item) => (
               <Button
                 key={item.path}
@@ -113,7 +190,73 @@ const Navigation = () => {
               </Button>
             ))}
             
-            <div className="mt-2 flex justify-between items-center py-2 border-t">
+            {/* Show login/signup buttons if user is not logged in */}
+            {!user ? (
+              <div className="mt-4 pt-4 border-t flex flex-col gap-2">
+                <Button variant="outline" size="sm" asChild className="justify-start">
+                  <Link to="/auth?mode=login" onClick={() => setIsMenuOpen(false)}>
+                    Login
+                  </Link>
+                </Button>
+                <Button size="sm" asChild className="justify-start">
+                  <Link to="/auth?mode=signup" onClick={() => setIsMenuOpen(false)}>
+                    Sign Up
+                  </Link>
+                </Button>
+              </div>
+            ) : (
+              /* Mobile Profile Options for logged in users */
+              <>
+                <div className="mt-4 pt-4 border-t">
+                  <div className="flex items-center mb-2">
+                    <Avatar className="h-8 w-8 mr-2">
+                      <AvatarImage src={user.user_metadata?.avatar_url || ''} />
+                      <AvatarFallback>{user.email?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
+                    </Avatar>
+                    <div className="text-sm font-medium">{user.email}</div>
+                  </div>
+                </div>
+                
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  asChild
+                  className="justify-start mt-1"
+                >
+                  <Link to="/profile" onClick={() => setIsMenuOpen(false)}>
+                    <User className="mr-2 h-4 w-4" />
+                    Profile
+                  </Link>
+                </Button>
+                
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  asChild
+                  className="justify-start mt-1"
+                >
+                  <Link to="/settings" onClick={() => setIsMenuOpen(false)}>
+                    <Settings className="mr-2 h-4 w-4" />
+                    Settings
+                  </Link>
+                </Button>
+                
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start mt-1 text-destructive hover:text-destructive"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    handleLogout();
+                  }}
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Logout
+                </Button>
+              </>
+            )}
+            
+            <div className="mt-4 flex justify-between items-center py-2 border-t">
               <span className="text-sm text-muted-foreground">Theme</span>
               <ThemeSwitcher />
             </div>

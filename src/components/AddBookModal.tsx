@@ -169,36 +169,73 @@ const AddBookModal = ({ open, onOpenChange, onAddBook }: AddBookModalProps) => {
     setAddError(null);
     
     try {
-      // Step 1: First, add the book to the books table
-      const bookData = {
-        title: newBook.title,
-        author: newBook.author,
-        cover_image: newBook.coverImage || "https://images.unsplash.com/photo-1589998059171-988d887df646?auto=format&fit=crop&q=80&w=300",
-        description: newBook.description || "",
-        published_date: newBook.publishedDate || null,
-        publisher: newBook.publisher || null,
-        page_count: newBook.pageCount || null,
-        isbn: newBook.isbn || null,
-        language: newBook.language || 'en',
-        average_rating: 0,
-        ratings_count: 0
-      };
+      // Get the current user's ID first (we'll need it for checking duplicates)
+      const { data: { user } } = await supabase.auth.getUser();
       
-      // Insert the book into the books table
-      const { data: bookResult, error: bookError } = await supabase
+      if (!user) {
+        throw new Error('You must be logged in to add a book to your collection');
+      }
+
+      // First, check if a book with the same title and author already exists
+      const { data: existingBooks } = await supabase
         .from('books')
-        .insert(bookData)
-        .select()
-        .single();
+        .select('id')
+        .eq('title', newBook.title)
+        .eq('author', newBook.author);
       
-      if (bookError) {
-        console.error('Error adding book:', bookError);
-        throw new Error(`Failed to add book: ${bookError.message}`);
+      let bookId;
+      
+      if (existingBooks && existingBooks.length > 0) {
+        // Book already exists, check if user already has this book
+        const { data: existingUserBook } = await supabase
+          .from('user_books')
+          .select('id')
+          .eq('book_id', existingBooks[0].id)
+          .eq('user_id', user.id);
+        
+        if (existingUserBook && existingUserBook.length > 0) {
+          throw new Error(`You already have "${newBook.title}" in your collection`);
+        }
+        
+        // Use existing book ID
+        bookId = existingBooks[0].id;
+      } else {
+        // Book doesn't exist, create it
+        // Step 1: Add the book to the books table
+        const bookData = {
+          title: newBook.title,
+          author: newBook.author,
+          cover_image: newBook.coverImage || "https://images.unsplash.com/photo-1589998059171-988d887df646?auto=format&fit=crop&q=80&w=300",
+          description: newBook.description || "",
+          published_date: newBook.publishedDate || null,
+          publisher: newBook.publisher || null,
+          page_count: newBook.pageCount || null,
+          isbn: newBook.isbn || null,
+          language: newBook.language || 'en',
+          average_rating: 0,
+          ratings_count: 0
+        };
+        
+        // Insert the book into the books table
+        const { data: bookResult, error: bookError } = await supabase
+          .from('books')
+          .insert(bookData)
+          .select()
+          .single();
+        
+        if (bookError) {
+          console.error('Error adding book:', bookError);
+          throw new Error(`Failed to add book: ${bookError.message}`);
+        }
+        
+        if (!bookResult) {
+          throw new Error('Failed to add book: No data returned');
+        }
+        
+        bookId = bookResult.id;
       }
       
-      if (!bookResult) {
-        throw new Error('Failed to add book: No data returned');
-      }
+      // Now we have a valid bookId to use
       
       // Step 2: Add genres to the book_genres table if any are selected
       if (selectedGenres.length > 0) {
@@ -232,13 +269,22 @@ const AddBookModal = ({ open, onOpenChange, onAddBook }: AddBookModalProps) => {
           }
           
           if (genreId) {
-            // Link book to genre
-            await supabase
+            // Check if this book-genre relationship already exists
+            const { data: existingBookGenre } = await supabase
               .from('book_genres')
-              .insert({
-                book_id: bookResult.id,
-                genre_id: genreId
-              });
+              .select('id')
+              .eq('book_id', bookId)
+              .eq('genre_id', genreId);
+              
+            if (!existingBookGenre || existingBookGenre.length === 0) {
+              // Link book to genre only if it doesn't already exist
+              await supabase
+                .from('book_genres')
+                .insert({
+                  book_id: bookId,
+                  genre_id: genreId
+                });
+            }
           }
         }
       }
@@ -247,7 +293,8 @@ const AddBookModal = ({ open, onOpenChange, onAddBook }: AddBookModalProps) => {
       const { data: userBookData, error: userBookError } = await supabase
         .from('user_books')
         .insert({
-          book_id: bookResult.id,
+          user_id: user.id, // Add the user_id field to satisfy RLS policy
+          book_id: bookId,
           status: status,
           progress: status === 'currently-reading' ? readingProgress : 0,
           start_date: status === 'currently-reading' || status === 'finished' ? new Date().toISOString() : null,
@@ -261,25 +308,38 @@ const AddBookModal = ({ open, onOpenChange, onAddBook }: AddBookModalProps) => {
         throw new Error(`Failed to add book to your collection: ${userBookError.message}`);
       }
       
+      // Fetch the complete book details for UI display
+      const { data: bookDetails, error: bookDetailsError } = await supabase
+        .from('books')
+        .select('*')
+        .eq('id', bookId)
+        .single();
+        
+      if (bookDetailsError || !bookDetails) {
+        console.error('Error fetching book details:', bookDetailsError);
+        throw new Error(`Failed to fetch book details: ${bookDetailsError?.message || 'No data returned'}`);
+      }
+      
       // Map the database book to our Book type for the UI
       const book: Book = {
-        id: bookResult.id,
-        title: bookResult.title,
-        author: bookResult.author,
-        coverImage: bookResult.cover_image,
-        description: bookResult.description,
-        publishedDate: bookResult.published_date,
-        publisher: bookResult.publisher,
-        pageCount: bookResult.page_count,
-        isbn: bookResult.isbn,
-        language: bookResult.language,
+        id: bookDetails.id,
+        title: bookDetails.title,
+        author: bookDetails.author,
+        coverImage: bookDetails.cover_image,
+        description: bookDetails.description,
+        publishedDate: bookDetails.published_date,
+        publisher: bookDetails.publisher,
+        pageCount: bookDetails.page_count,
+        isbn: bookDetails.isbn,
+        language: bookDetails.language,
         genres: selectedGenres,
-        averageRating: 0,
-        ratingsCount: 0
+        averageRating: bookDetails.average_rating || 0,
+        ratingsCount: bookDetails.ratings_count || 0
       };
       
-      // Notify parent component
-      onAddBook(book);
+      // Only notify parent component with the book data, but don't trigger another add operation
+      // Pass a flag to indicate the book has already been added to the database
+      onAddBook({...book, alreadyAdded: true});
       
       toast({
         title: "Book added",
