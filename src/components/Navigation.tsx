@@ -13,6 +13,7 @@ import {
   Clock,
   LogOut,
   Settings,
+  MessageSquare,
 } from "lucide-react";
 import ThemeSwitcher from "./ThemeSwitcher";
 import { cn } from "@/lib/utils";
@@ -147,6 +148,12 @@ const Navigation = () => {
                   <Link to="/settings" className="cursor-pointer w-full">
                     <Settings className="mr-2 h-4 w-4" />
                     Settings
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/my-reviews" className="cursor-pointer w-full">
+                    <MessageSquare className="mr-2 h-4 w-4" />
+                    My Reviews
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />

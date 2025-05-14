@@ -168,7 +168,6 @@ const Bookshelf = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.2 }}
       >
-        <h1 className="text-3xl font-bold mb-6">My Bookshelf</h1>
         <BookshelfControls
           view={view}
           setView={setView}

@@ -13,6 +13,7 @@ import Navigation from "@/components/Navigation";
 import Bookshelf from "./pages/Bookshelf";
 import BookDetail from "./pages/BookDetail";
 import UserBookDetail from "./pages/UserBookDetail";
+import MyReviews from "./pages/MyReviews";
 import GoogleBookDetail from "./pages/GoogleBookDetail";
 import Explore from "./pages/Explore";
 import Timeline from "./pages/Timeline";
@@ -45,6 +46,11 @@ const App = () => (
                 <Route path="/timeline" element={
                   <ProtectedRoute>
                     <Timeline />
+                  </ProtectedRoute>
+                } />
+                <Route path="/my-reviews" element={
+                  <ProtectedRoute>
+                    <MyReviews />
                   </ProtectedRoute>
                 } />
                 <Route path="/profile" element={

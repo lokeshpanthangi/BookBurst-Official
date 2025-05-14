@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, MessageSquare, Star, X } from "lucide-react";
+import { ArrowLeft, MessageSquare, Star, X, FileText, Save, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
@@ -33,8 +33,46 @@ const UserBookDetail = () => {
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState("");
   const [progress, setProgress] = useState(0);
+  
+  // Personal notes state
+  const [notesModalOpen, setNotesModalOpen] = useState(false);
+  const [personalNotes, setPersonalNotes] = useState("");
+  const [isSavingNotes, setIsSavingNotes] = useState(false);
 
+  // Add a function to check valid status values in the database
+  const checkValidStatusValues = async () => {
+    try {
+      console.log('Checking valid status values in the database...');
+      
+      // Query a few user_books records to see what status values are being used
+      const { data, error } = await supabase
+        .from('user_books')
+        .select('status')
+        .limit(10);
+      
+      if (error) {
+        console.error('Error fetching status values:', error);
+        return;
+      }
+      
+      if (data && data.length > 0) {
+        console.log('Found existing status values:', data.map(item => item.status));
+        // Use the first status value we find as our selected status
+        if (data[0].status) {
+          setSelectedStatus(data[0].status);
+        }
+      } else {
+        console.log('No existing user_books records found');
+      }
+    } catch (error) {
+      console.error('Error checking status values:', error);
+    }
+  };
+  
   useEffect(() => {
+    // Check valid status values when component mounts
+    checkValidStatusValues();
+    
     const fetchBookDetails = async () => {
       if (!id) return;
       
@@ -159,9 +197,11 @@ const UserBookDetail = () => {
           setUserBook(userBookData);
           setSelectedStatus(userBookData.status || '');
           setProgress(userBookData.progress || 0);
+          setPersonalNotes(userBookData.notes || ''); // Load personal notes
         } else {
           console.log('User does not have this book in their bookshelf');
           setUserBook(null);
+          setPersonalNotes('');
         }
       } catch (error) {
         console.error('Error checking user book:', error);
@@ -197,6 +237,123 @@ const UserBookDetail = () => {
     }
     
     setStatusModalOpen(true);
+  };
+  
+  // Function to open the notes modal
+  const openNotesModal = () => {
+    if (!user) {
+      toast({
+        title: 'Sign in required',
+        description: 'You need to sign in to add personal notes',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    setNotesModalOpen(true);
+  };
+  
+  // Function to save personal notes
+  const savePersonalNotes = async () => {
+    if (!book || !user) {
+      console.error('Missing book or user data');
+      return;
+    }
+    
+    setIsSavingNotes(true);
+    
+    try {
+      console.log('Saving personal notes for book:', book.id);
+      
+      // Check if the user already has this book
+      const { data: existingBooks, error: checkError } = await supabase
+        .from('user_books')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('book_id', book.id);
+      
+      if (checkError) {
+        console.error('Error checking if book exists:', checkError);
+        throw checkError;
+      }
+      
+      if (existingBooks && existingBooks.length > 0) {
+        // Book exists, update the notes
+        const existingBook = existingBooks[0];
+        console.log('Updating notes for existing user book with ID:', existingBook.id);
+        
+        const { error } = await supabase
+          .from('user_books')
+          .update({
+            notes: personalNotes,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingBook.id);
+        
+        if (error) {
+          console.error('Error updating notes:', error);
+          throw error;
+        }
+        
+        console.log('Successfully updated notes');
+        
+        // Update local state
+        setUserBook({
+          ...existingBook,
+          notes: personalNotes,
+          updated_at: new Date().toISOString()
+        });
+        
+        toast({
+          title: 'Notes saved',
+          description: 'Your personal notes have been saved',
+        });
+      } else {
+        // Book doesn't exist, add it with notes
+        console.log('Adding new user book with notes for book:', book.id);
+        
+        const { data, error } = await supabase
+          .from('user_books')
+          .insert({
+            user_id: user.id,
+            book_id: book.id,
+            status: 'to-read', // Default status
+            progress: 0,
+            notes: personalNotes,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .select();
+        
+        if (error) {
+          console.error('Error inserting user book with notes:', error);
+          throw error;
+        }
+        
+        if (data && data.length > 0) {
+          console.log('Successfully added user book with notes:', data[0]);
+          setUserBook(data[0]);
+          setSelectedStatus(data[0].status || '');
+          setProgress(data[0].progress || 0);
+          
+          toast({
+            title: 'Notes saved',
+            description: 'Book added to your bookshelf with personal notes',
+          });
+        }
+      }
+      
+      setNotesModalOpen(false);
+    } catch (error: any) {
+      console.error('Error saving personal notes:', error);
+      toast({
+        title: 'Error',
+        description: `Failed to save your notes: ${error.message || 'Unknown error'}`,
+        variant: 'destructive'
+      });
+    } finally {
+      setIsSavingNotes(false);
+    }
   };
   
   // Function to update the user's book status
@@ -474,6 +631,15 @@ const UserBookDetail = () => {
                   Edit Progress
                 </Button>
                 
+                <Button 
+                  onClick={openNotesModal} 
+                  variant="outline"
+                  className="flex items-center gap-2"
+                >
+                  <FileText size={16} />
+                  Personal Notes
+                </Button>
+                
                 <div className="w-full mt-2 p-3 border rounded-md bg-muted/20">
                   <div className="flex justify-between items-center">
                     <div>
@@ -501,6 +667,9 @@ const UserBookDetail = () => {
                 <h2 className="text-xl font-bold">Reviews</h2>
                 <TabsList>
                   <TabsTrigger value="public">Public Reviews</TabsTrigger>
+                  {userBook && userBook.notes && (
+                    <TabsTrigger value="personal">Personal Notes</TabsTrigger>
+                  )}
                 </TabsList>
               </div>
               
@@ -546,6 +715,37 @@ const UserBookDetail = () => {
                         </div>
                       </div>
                     ))}
+                  </div>
+                )}
+              </TabsContent>
+              
+              <TabsContent value="personal" className="space-y-6">
+                {userBook && userBook.notes ? (
+                  <div className="border rounded-lg p-6 shadow-sm bg-card">
+                    <div className="flex justify-between items-center mb-4">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-5 w-5 text-primary" />
+                        <h3 className="text-lg font-medium">My Notes</h3>
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={openNotesModal}
+                        className="text-xs"
+                      >
+                        Edit
+                      </Button>
+                    </div>
+                    <div className="whitespace-pre-wrap">{userBook.notes}</div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 border rounded-md bg-muted/20">
+                    <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
+                    <h3 className="mt-2 text-lg font-medium">No personal notes yet</h3>
+                    <p className="text-muted-foreground">Add your personal thoughts, quotes, or reflections about this book.</p>
+                    <Button onClick={openNotesModal} className="mt-4">
+                      Add Notes
+                    </Button>
                   </div>
                 )}
               </TabsContent>
@@ -621,7 +821,7 @@ const UserBookDetail = () => {
                 <div className="mb-4">
                   <p className="text-sm font-medium mb-2">Reading Status</p>
                   <div className="grid grid-cols-2 gap-2">
-                    {['want-to-read', 'reading', 'completed'].map(status => (
+                    {['to read', 'reading', 'completed'].map(status => (
                       <Button
                         key={status}
                         type="button"
@@ -635,7 +835,7 @@ const UserBookDetail = () => {
                         }}
                         className="justify-start"
                       >
-                        {status === 'want-to-read' ? 'Want to Read' : 
+                        {status === 'to read' ? 'Want to Read' : 
                          status === 'reading' ? 'Reading' : 
                          'Completed'}
                       </Button>
@@ -673,6 +873,45 @@ const UserBookDetail = () => {
                     disabled={!selectedStatus}
                   >
                     Update Progress
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Personal Notes Modal */}
+          {notesModalOpen && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+              <div className="bg-background rounded-lg p-6 max-w-2xl w-full">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-bold">Personal Notes</h2>
+                  <Button variant="ghost" size="icon" onClick={() => setNotesModalOpen(false)}>
+                    <X size={18} />
+                  </Button>
+                </div>
+                
+                <div className="mb-4">
+                  <p className="text-sm font-medium mb-2">Your private notes for "{book?.title}"</p>
+                  <Textarea
+                    value={personalNotes}
+                    onChange={(e) => setPersonalNotes(e.target.value)}
+                    placeholder="Add your personal thoughts, favorite quotes, or reflections about this book..."
+                    className="min-h-[250px] w-full"
+                  />
+                  <p className="text-xs text-muted-foreground mt-2">These notes are private and only visible to you.</p>
+                </div>
+                
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setNotesModalOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={savePersonalNotes}
+                    disabled={isSavingNotes}
+                    className="flex items-center gap-2"
+                  >
+                    {isSavingNotes && <Loader2 size={16} className="animate-spin" />}
+                    {isSavingNotes ? 'Saving...' : 'Save Notes'}
                   </Button>
                 </div>
               </div>
