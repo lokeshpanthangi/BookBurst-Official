@@ -11,16 +11,16 @@ const mapDbBookToBook = (item: any): Book => ({
   id: item.id,
   title: item.title,
   author: item.author,
-  coverImage: item.cover_image || '',  // Fixed camelCase mapping
+  coverImage: item.cover_image || '',
   description: item.description || '',
   publisher: item.publisher,
-  publishedDate: item.published_date,  // Fixed camelCase mapping
+  publishedDate: item.published_date,
   isbn: item.isbn,
-  pageCount: item.page_count,  // Fixed camelCase mapping
+  pageCount: item.page_count,
   language: item.language,
   genres: item.book_genres?.map((bg: any) => bg.genres?.name) || [],
-  averageRating: item.average_rating || undefined,  // Fixed camelCase mapping
-  ratingsCount: item.ratings_count || undefined  // Fixed camelCase mapping
+  averageRating: item.average_rating,
+  ratingsCount: item.ratings_count
 });
 
 // Get all books from the database
@@ -143,12 +143,12 @@ export const useUserBooks = (filters: BookshelfFilters = {}, page: number = 0, p
         id: item.books.id,
         title: item.books.title,
         author: item.books.author,
-        coverImage: item.books.cover_image || '',  // Fixed camelCase mapping
+        coverImage: item.books.cover_image || '',
         description: item.books.description || '',
         publisher: item.books.publisher,
-        publishedDate: item.books.published_date,  // Fixed camelCase mapping
+        publishedDate: item.books.published_date,
         isbn: item.books.isbn,
-        pageCount: item.books.page_count,  // Fixed camelCase mapping
+        pageCount: item.books.page_count,
         language: item.books.language,
         status: item.status,
         startDate: item.start_date,
@@ -158,8 +158,8 @@ export const useUserBooks = (filters: BookshelfFilters = {}, page: number = 0, p
         notes: item.notes,
         userBookId: item.id,
         genres: item.books.book_genres?.map((bg: any) => bg.genres?.name) || [],
-        averageRating: item.books.average_rating,  // Fixed camelCase mapping
-        ratingsCount: item.books.ratings_count  // Fixed camelCase mapping
+        averageRating: item.books.average_rating,
+        ratingsCount: item.books.ratings_count
       }));
       
       return { 
@@ -293,6 +293,48 @@ export const useAddBook = () => {
       });
     },
   });
+};
+
+// Get book with the highest rating
+export const getBookWithHighestRating = async () => {
+  const { data: books } = await supabase.from('books').select('*').order('average_rating', { ascending: false }).limit(1);
+  return books && books.length > 0 ? books[0] : null;
+};
+
+// Get books by genre - Fixed the query syntax
+export const getBooksByGenre = async (genreId: string) => {
+  const { data } = await supabase
+    .from('book_genres')
+    .select('book_id')
+    .filter('genre_id', 'eq', genreId);
+    
+  return data ? data.map(bg => bg.book_id) : [];
+};
+
+// Get books by genres - Fixed the query syntax
+export const getBooksByGenres = async (genreIds: string[]) => {
+  const { data } = await supabase
+    .from('book_genres')
+    .select('book_id')
+    .filter('genre_id', 'in', `(${genreIds.join(',')})`);
+    
+  return data ? data.map(bg => bg.book_id) : [];
+};
+
+// Order books by a given sort
+export const orderBooksBy = (query: any, sort: string) => {
+  switch (sort) {
+    case 'title':
+      return query.order('title', { ascending: true });
+    case 'author': 
+      return query.order('author', { ascending: true });
+    case 'newest':
+      return query.order('created_at', { ascending: false });
+    case 'rating':
+      return query.order('average_rating', { ascending: false });
+    default:
+      return query.order('created_at', { ascending: false });
+  }
 };
 
 // Add a book to user's collection with status
@@ -683,47 +725,4 @@ export const saveLastSelectedTab = (tabId: string) => {
 export const getLastSelectedTab = (): string | null => {
   const match = document.cookie.match(/(^|;)\s*bookshelf-last-tab=([^;]+)/);
   return match ? match[2] : null;
-};
-
-// Get book with the highest rating
-export const getBookWithHighestRating = async () => {
-  // When accessing these optional properties, we need to use optional chaining
-  const { data: books } = await supabase.from('books').select('*').order('average_rating', { ascending: false }).limit(1);
-  return books && books.length > 0 ? books[0] : null;
-};
-
-// Get books by genre
-export const getBooksByGenre = async (genreId: string) => {
-  const { data } = await supabase
-    .from('book_genres')
-    .select('book_id')
-    .filter('genre_id', 'eq', genreId);
-    
-  return data.map(bg => bg.book_id);
-};
-
-// Get books by genres
-export const getBooksByGenres = async (genreIds: string[]) => {
-  const { data } = await supabase
-    .from('book_genres')
-    .select('book_id')
-    .filter('genre_id', 'in', genreIds);
-    
-  return data.map(bg => bg.book_id);
-};
-
-// Order books by a given sort
-export const orderBooksBy = (query: any, sort: string) => {
-  switch (sort) {
-    case 'title':
-      return query.order('title', { ascending: true });
-    case 'author': 
-      return query.order('author', { ascending: true });
-    case 'newest':
-      return query.order('created_at', { ascending: false });
-    case 'rating':
-      return query.order('average_rating', { ascending: false });
-    default:
-      return query.order('created_at', { ascending: false });
-  }
 };
