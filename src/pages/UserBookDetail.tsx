@@ -27,6 +27,12 @@ const UserBookDetail = () => {
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [newReview, setNewReview] = useState("");
   const [reviewRating, setReviewRating] = useState(0);
+  
+  // User book state
+  const [userBook, setUserBook] = useState<any>(null);
+  const [statusModalOpen, setStatusModalOpen] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState("");
+  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     const fetchBookDetails = async () => {
@@ -72,6 +78,11 @@ const UserBookDetail = () => {
         
         // Fetch reviews for this book
         fetchReviews(bookData.id);
+        
+        // If user is logged in, check if they have this book in their bookshelf
+        if (user) {
+          fetchUserBook(bookData.id);
+        }
       } catch (error) {
         console.error('Error in fetchBookDetails:', error);
         setError(true);
@@ -125,8 +136,40 @@ const UserBookDetail = () => {
       }
     };
     
+    const fetchUserBook = async (bookId: string) => {
+      if (!user) return;
+      
+      try {
+        console.log('Checking if user has this book in their bookshelf');
+        
+        const { data: userBookData, error: userBookError } = await supabase
+          .from('user_books')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('book_id', bookId)
+          .single();
+        
+        if (userBookError && userBookError.code !== 'PGRST116') { // PGRST116 is the error code for no rows returned
+          console.error('Error fetching user book:', userBookError);
+          return;
+        }
+        
+        if (userBookData) {
+          console.log('User has this book in their bookshelf:', userBookData);
+          setUserBook(userBookData);
+          setSelectedStatus(userBookData.status || '');
+          setProgress(userBookData.progress || 0);
+        } else {
+          console.log('User does not have this book in their bookshelf');
+          setUserBook(null);
+        }
+      } catch (error) {
+        console.error('Error checking user book:', error);
+      }
+    };
+    
     fetchBookDetails();
-  }, [id, toast]);
+  }, [id, toast, user]);
 
   // Function to open the review modal
   const openReviewModal = () => {
@@ -140,6 +183,123 @@ const UserBookDetail = () => {
     }
     
     setReviewModalOpen(true);
+  };
+  
+  // Function to open the status modal
+  const openStatusModal = () => {
+    if (!user) {
+      toast({
+        title: 'Sign in required',
+        description: 'You need to sign in to update your reading status',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    setStatusModalOpen(true);
+  };
+  
+  // Function to update the user's book status
+  const updateBookStatus = async () => {
+    if (!book || !user) {
+      console.error('Missing book or user data');
+      return;
+    }
+    
+    try {
+      console.log('Updating book status:', { book, user, selectedStatus, progress });
+      
+      // Prepare progress value - only non-zero for 'reading' status
+      const progressValue = selectedStatus === 'reading' ? progress : 0;
+      
+      // First, check if the user already has this book
+      const { data: existingBooks, error: checkError } = await supabase
+        .from('user_books')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('book_id', book.id);
+      
+      if (checkError) {
+        console.error('Error checking if book exists:', checkError);
+        throw checkError;
+      }
+      
+      if (existingBooks && existingBooks.length > 0) {
+        // Book exists, update it
+        const existingBook = existingBooks[0];
+        console.log('Updating existing user book with ID:', existingBook.id);
+        
+        // Try a direct update with the exact values
+        const { error } = await supabase
+          .from('user_books')
+          .update({
+            status: selectedStatus,
+            progress: progressValue,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingBook.id);
+        
+        if (error) {
+          console.error('Error updating user book:', error);
+          throw error;
+        }
+        
+        console.log('Successfully updated user book');
+        
+        // Update local state
+        setUserBook({
+          ...existingBook,
+          status: selectedStatus,
+          progress: progressValue,
+          updated_at: new Date().toISOString()
+        });
+        
+        toast({
+          title: 'Status updated',
+          description: 'Your reading status has been updated',
+        });
+      } else {
+        // Book doesn't exist, insert it
+        console.log('Adding new user book for book:', book.id);
+        
+        // Try a direct insert with the exact values
+        const { data, error } = await supabase
+          .from('user_books')
+          .insert({
+            user_id: user.id,
+            book_id: book.id,
+            status: selectedStatus,
+            progress: progressValue,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .select();
+        
+        if (error) {
+          console.error('Error inserting user book:', error);
+          throw error;
+        }
+        
+        if (data && data.length > 0) {
+          console.log('Successfully added user book:', data[0]);
+          setUserBook(data[0]);
+          
+          toast({
+            title: 'Book added',
+            description: 'Book has been added to your bookshelf',
+          });
+        }
+      }
+      
+      setStatusModalOpen(false);
+    } catch (error: any) {
+      console.error('Error updating book status:', error);
+      toast({
+        title: 'Error',
+        description: `Failed to update your reading status: ${error.message || 'Unknown error'}`,
+        variant: 'destructive'
+      });
+    }
   };
   
   // Function to submit a new review
@@ -296,7 +456,7 @@ const UserBookDetail = () => {
                 )}
               </div>
               
-              <div className="mt-4">
+              <div className="mt-4 flex flex-wrap gap-2">
                 <Button 
                   onClick={openReviewModal} 
                   className="flex items-center gap-2"
@@ -304,6 +464,32 @@ const UserBookDetail = () => {
                   <MessageSquare size={16} />
                   Add a Review
                 </Button>
+                
+                <Button 
+                  onClick={openStatusModal} 
+                  variant="outline"
+                  className="flex items-center gap-2"
+                >
+                  <Star size={16} />
+                  Edit Progress
+                </Button>
+                
+                <div className="w-full mt-2 p-3 border rounded-md bg-muted/20">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="text-sm font-medium">Status: <span className="font-normal">{userBook ? userBook.status || 'Not set' : 'Not started'}</span></p>
+                      <p className="text-sm font-medium mt-1">Progress: <span className="font-normal">{userBook ? userBook.progress || 0 : 0}%</span></p>
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={openStatusModal}
+                      className="text-xs"
+                    >
+                      Edit
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -415,6 +601,78 @@ const UserBookDetail = () => {
                     disabled={!newReview || reviewRating === 0}
                   >
                     Submit Review
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Status Modal */}
+          {statusModalOpen && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+              <div className="bg-background rounded-lg p-6 max-w-md w-full">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-bold">Update Reading Progress</h2>
+                  <Button variant="ghost" size="icon" onClick={() => setStatusModalOpen(false)}>
+                    <X size={18} />
+                  </Button>
+                </div>
+                
+                <div className="mb-4">
+                  <p className="text-sm font-medium mb-2">Reading Status</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {['want-to-read', 'reading', 'completed'].map(status => (
+                      <Button
+                        key={status}
+                        type="button"
+                        variant={selectedStatus === status ? "default" : "outline"}
+                        onClick={() => {
+                          setSelectedStatus(status);
+                          // Reset progress to 0 if not reading
+                          if (status !== 'reading') {
+                            setProgress(0);
+                          }
+                        }}
+                        className="justify-start"
+                      >
+                        {status === 'want-to-read' ? 'Want to Read' : 
+                         status === 'reading' ? 'Reading' : 
+                         'Completed'}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                
+                {selectedStatus === 'reading' && (
+                  <div className="mb-6">
+                    <div className="flex justify-between items-center mb-2">
+                      <p className="text-sm font-medium">Progress: {progress}%</p>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={progress}
+                      onChange={(e) => setProgress(parseInt(e.target.value))}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>0%</span>
+                      <span>50%</span>
+                      <span>100%</span>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setStatusModalOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={updateBookStatus}
+                    disabled={!selectedStatus}
+                  >
+                    Update Progress
                   </Button>
                 </div>
               </div>

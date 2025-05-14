@@ -104,7 +104,7 @@ const AddBookModal = ({ open, onOpenChange, onAddBook }: AddBookModalProps) => {
     
     try {
       // Use Google Books API instead of OpenLibrary
-      const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(searchQuery)}&maxResults=10&key=AIzaSyBbS-GTBq4Mji-l6u-VOm8JsBj9j7trdIw`);
+      const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(searchQuery)}&maxResults=10&key=AIzaSyCsiXKmchnyRFnK3RQzeWya88zZ52tkcWk`);
       
       if (!response.ok) {
         throw new Error(`API error: ${response.status}`);

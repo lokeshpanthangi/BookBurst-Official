@@ -1,7 +1,7 @@
 
 import { Book } from "@/types/book";
 
-const API_KEY = "AIzaSyBbS-GTBq4Mji-l6u-VOm8JsBj9j7trdIw";
+const API_KEY = "AIzaSyCsiXKmchnyRFnK3RQzeWya88zZ52tkcWk";
 const BASE_URL = "https://www.googleapis.com/books/v1/volumes";
 
 // Convert Google Books API response to our Book type
