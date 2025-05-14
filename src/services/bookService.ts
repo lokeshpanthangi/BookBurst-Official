@@ -1,10 +1,10 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { Book, UserBook, BookshelfFilters } from "@/types/book";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Json } from "@/integrations/supabase/types";
-import * as googleBooksService from "@/services/googleBooksService";
 
 // Map database fields to our Book type
 const mapDbBookToBook = (item: any): Book => ({
@@ -114,10 +114,10 @@ export const useUserBooks = (filters: BookshelfFilters = {}, page: number = 0, p
       if (filters.sort) {
         switch (filters.sort) {
           case 'title':
-            query = query.order('title');
+            query = query.order('books.title');
             break;
           case 'author':
-            query = query.order('author');
+            query = query.order('books.author');
             break;
           case 'dateAdded':
             query = query.order('created_at', { ascending: false });
@@ -129,6 +129,9 @@ export const useUserBooks = (filters: BookshelfFilters = {}, page: number = 0, p
             query = query.order('updated_at', { ascending: false });
             break;
         }
+      } else {
+        // Default sorting
+        query = query.order('books.title');
       }
       
       // Apply pagination
@@ -140,16 +143,16 @@ export const useUserBooks = (filters: BookshelfFilters = {}, page: number = 0, p
       
       // Transform the data to match our UserBook type
       const userBooks: UserBook[] = data.map((item: any) => ({
-        id: item.books.id,
-        title: item.books.title,
-        author: item.books.author,
-        coverImage: item.books.cover_image || '',
-        description: item.books.description || '',
-        publisher: item.books.publisher,
-        publishedDate: item.books.published_date,
-        isbn: item.books.isbn,
-        pageCount: item.books.page_count,
-        language: item.books.language,
+        id: item.books?.id,
+        title: item.books?.title,
+        author: item.books?.author,
+        coverImage: item.books?.cover_image || '',
+        description: item.books?.description || '',
+        publisher: item.books?.publisher,
+        publishedDate: item.books?.published_date,
+        isbn: item.books?.isbn,
+        pageCount: item.books?.page_count,
+        language: item.books?.language,
         status: item.status,
         startDate: item.start_date,
         finishDate: item.finish_date,
@@ -157,9 +160,9 @@ export const useUserBooks = (filters: BookshelfFilters = {}, page: number = 0, p
         progress: item.progress,
         notes: item.notes,
         userBookId: item.id,
-        genres: item.books.book_genres?.map((bg: any) => bg.genres?.name) || [],
-        averageRating: item.books.average_rating,
-        ratingsCount: item.books.ratings_count
+        genres: item.books?.book_genres?.map((bg: any) => bg.genres?.name) || [],
+        averageRating: item.books?.average_rating,
+        ratingsCount: item.books?.ratings_count
       }));
       
       return { 
@@ -171,18 +174,217 @@ export const useUserBooks = (filters: BookshelfFilters = {}, page: number = 0, p
   });
 };
 
-// Search Google Books API
-export const useSearchGoogleBooks = (query: string, page: number = 0, pageSize: number = 20) => {
+// Search Open Library API
+export const useSearchOpenLibrary = (query: string, page: number = 0, pageSize: number = 20) => {
   return useQuery({
-    queryKey: ['googleBooks', query, page, pageSize],
+    queryKey: ['openLibrary', query, page, pageSize],
     queryFn: async () => {
-      return await googleBooksService.searchBooks(query, page, pageSize);
+      if (!query.trim()) return { books: [], totalItems: 0 };
+      
+      // Calculate offset for pagination
+      const offset = page * pageSize;
+      
+      // OpenLibrary search API
+      const response = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=${pageSize}&offset=${offset}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch books from Open Library');
+      }
+      
+      const data = await response.json();
+      
+      // Map the OpenLibrary data to our Book format
+      const books: Book[] = data.docs.map((book: any) => {
+        const coverID = book.cover_i;
+        const coverUrl = coverID 
+          ? `https://covers.openlibrary.org/b/id/${coverID}-M.jpg`
+          : 'https://images.unsplash.com/photo-1589998059171-988d887df646?auto=format&fit=crop&q=80&w=300';
+        
+        return {
+          id: book.key || `ol-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          title: book.title || 'Unknown Title',
+          author: book.author_name ? book.author_name.join(', ') : 'Unknown Author',
+          coverImage: coverUrl,
+          description: book.description || '',
+          publishedDate: book.first_publish_year ? book.first_publish_year.toString() : '',
+          publisher: book.publisher ? book.publisher[0] : '',
+          pageCount: book.number_of_pages_median || 0,
+          isbn: book.isbn ? book.isbn[0] : '',
+          language: book.language ? book.language[0] : '',
+          genres: book.subject ? book.subject.slice(0, 5) : [],
+          averageRating: 0,
+          ratingsCount: 0,
+        };
+      });
+      
+      return {
+        books,
+        totalItems: data.numFound
+      };
     },
     enabled: !!query.trim(),
   });
 };
 
-// Add a book to the database from Google Books or manual entry
+// Get book with the highest rating
+export const getBookWithHighestRating = async () => {
+  const { data: books } = await supabase.from('books').select('*').order('average_rating', { ascending: false }).limit(1);
+  return books && books.length > 0 ? books[0] : null;
+};
+
+// Get books by genre - Fixed the query syntax
+export const getBooksByGenre = async (genreId: string) => {
+  const { data } = await supabase
+    .from('book_genres')
+    .select('book_id')
+    .filter('genre_id', 'eq', genreId);
+    
+  return data ? data.map(bg => bg.book_id) : [];
+};
+
+// Get books by genres - Fixed the query syntax
+export const getBooksByGenres = async (genreIds: string[]) => {
+  const { data } = await supabase
+    .from('book_genres')
+    .select('book_id')
+    .filter('genre_id', 'in', `(${genreIds.join(',')})`);
+    
+  return data ? data.map(bg => bg.book_id) : [];
+};
+
+// Fetch trending books from Open Library
+export const fetchTrendingBooks = async (): Promise<Book[]> => {
+  try {
+    const response = await fetch('https://openlibrary.org/trending/daily.json');
+    if (!response.ok) {
+      throw new Error('Failed to fetch trending books');
+    }
+    
+    const data = await response.json();
+    
+    return data.works.slice(0, 12).map((book: any) => {
+      const coverID = book.cover_i || book.cover_id;
+      const coverUrl = coverID 
+        ? `https://covers.openlibrary.org/b/id/${coverID}-M.jpg`
+        : 'https://images.unsplash.com/photo-1589998059171-988d887df646?auto=format&fit=crop&q=80&w=300';
+      
+      return {
+        id: book.key,
+        title: book.title,
+        author: book.author_name ? book.author_name.join(', ') : 'Unknown Author',
+        coverImage: coverUrl,
+        description: book.description || '',
+        publishedDate: book.first_publish_year ? book.first_publish_year.toString() : '',
+        publisher: '',
+        pageCount: 0,
+        isbn: '',
+        language: '',
+        genres: [],
+        averageRating: 0,
+        ratingsCount: 0,
+      };
+    });
+  } catch (error) {
+    console.error('Error fetching trending books:', error);
+    return [];
+  }
+};
+
+// Fetch new releases from Open Library
+export const fetchNewReleases = async (): Promise<Book[]> => {
+  try {
+    // Using the Open Library recent endpoint
+    const response = await fetch('https://openlibrary.org/subjects/new_books.json?limit=12');
+    if (!response.ok) {
+      throw new Error('Failed to fetch new releases');
+    }
+    
+    const data = await response.json();
+    
+    return data.works.map((book: any) => {
+      const coverID = book.cover_id;
+      const coverUrl = coverID 
+        ? `https://covers.openlibrary.org/b/id/${coverID}-M.jpg`
+        : 'https://images.unsplash.com/photo-1589998059171-988d887df646?auto=format&fit=crop&q=80&w=300';
+      
+      return {
+        id: book.key,
+        title: book.title,
+        author: book.authors ? book.authors.map((a: any) => a.name).join(', ') : 'Unknown Author',
+        coverImage: coverUrl,
+        description: '',
+        publishedDate: book.first_publish_year ? book.first_publish_year.toString() : '',
+        publisher: '',
+        pageCount: 0,
+        isbn: '',
+        language: '',
+        genres: [],
+        averageRating: 0,
+        ratingsCount: 0,
+      };
+    });
+  } catch (error) {
+    console.error('Error fetching new releases:', error);
+    return [];
+  }
+};
+
+// Fetch recommended books from Open Library
+export const fetchRecommendedBooks = async (): Promise<Book[]> => {
+  try {
+    // Using a popular subject as a proxy for recommendations
+    const response = await fetch('https://openlibrary.org/subjects/bestseller.json?limit=12');
+    if (!response.ok) {
+      throw new Error('Failed to fetch recommended books');
+    }
+    
+    const data = await response.json();
+    
+    return data.works.map((book: any) => {
+      const coverID = book.cover_id;
+      const coverUrl = coverID 
+        ? `https://covers.openlibrary.org/b/id/${coverID}-M.jpg`
+        : 'https://images.unsplash.com/photo-1589998059171-988d887df646?auto=format&fit=crop&q=80&w=300';
+      
+      return {
+        id: book.key,
+        title: book.title,
+        author: book.authors ? book.authors.map((a: any) => a.name).join(', ') : 'Unknown Author',
+        coverImage: coverUrl,
+        description: '',
+        publishedDate: book.first_publish_year ? book.first_publish_year.toString() : '',
+        publisher: '',
+        pageCount: 0,
+        isbn: '',
+        language: '',
+        genres: [],
+        averageRating: 0,
+        ratingsCount: 0,
+      };
+    });
+  } catch (error) {
+    console.error('Error fetching recommended books:', error);
+    return [];
+  }
+};
+
+// Order books by a given sort
+export const orderBooksBy = (query: any, sort: string) => {
+  switch (sort) {
+    case 'title':
+      return query.order('title', { ascending: true });
+    case 'author': 
+      return query.order('author', { ascending: true });
+    case 'newest':
+      return query.order('created_at', { ascending: false });
+    case 'rating':
+      return query.order('average_rating', { ascending: false });
+    default:
+      return query.order('created_at', { ascending: false });
+  }
+};
+
+// Add a book to the database from Open Library or manual entry
 export const useAddBook = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -295,48 +497,6 @@ export const useAddBook = () => {
   });
 };
 
-// Get book with the highest rating
-export const getBookWithHighestRating = async () => {
-  const { data: books } = await supabase.from('books').select('*').order('average_rating', { ascending: false }).limit(1);
-  return books && books.length > 0 ? books[0] : null;
-};
-
-// Get books by genre - Fixed the query syntax
-export const getBooksByGenre = async (genreId: string) => {
-  const { data } = await supabase
-    .from('book_genres')
-    .select('book_id')
-    .filter('genre_id', 'eq', genreId);
-    
-  return data ? data.map(bg => bg.book_id) : [];
-};
-
-// Get books by genres - Fixed the query syntax
-export const getBooksByGenres = async (genreIds: string[]) => {
-  const { data } = await supabase
-    .from('book_genres')
-    .select('book_id')
-    .filter('genre_id', 'in', `(${genreIds.join(',')})`);
-    
-  return data ? data.map(bg => bg.book_id) : [];
-};
-
-// Order books by a given sort
-export const orderBooksBy = (query: any, sort: string) => {
-  switch (sort) {
-    case 'title':
-      return query.order('title', { ascending: true });
-    case 'author': 
-      return query.order('author', { ascending: true });
-    case 'newest':
-      return query.order('created_at', { ascending: false });
-    case 'rating':
-      return query.order('average_rating', { ascending: false });
-    default:
-      return query.order('created_at', { ascending: false });
-  }
-};
-
 // Add a book to user's collection with status
 export const useAddUserBook = () => {
   const queryClient = useQueryClient();
@@ -348,11 +508,13 @@ export const useAddUserBook = () => {
       bookId, 
       status,
       startDate,
+      progress,
       notes 
     }: { 
       bookId: string; 
       status: 'currently-reading' | 'want-to-read' | 'finished';
       startDate?: string;
+      progress?: number;
       notes?: string;
     }) => {
       if (!user) throw new Error("User must be authenticated");
@@ -375,28 +537,30 @@ export const useAddUserBook = () => {
         status,
         user_id: user.id,
         start_date: status === 'currently-reading' ? startDate || new Date().toISOString() : startDate,
+        progress: status === 'currently-reading' ? progress || 0 : null,
         notes
       };
       
-      // Add the book to the user's collection - fixed array issue
+      // Add the book to the user's collection
       const { data, error } = await supabase
         .from('user_books')
-        .insert(userBookData)  // Removed array brackets
+        .insert(userBookData)
         .select()
         .single();
       
       if (error) throw error;
       
-      // Create reading activity - fixed array issue
+      // Create reading activity
       await supabase
         .from('reading_activity')
-        .insert({  // Removed array brackets
+        .insert({
           book_id: bookId,
           user_id: user.id,
           activity_type: status === 'finished' ? 'finished' : status === 'currently-reading' ? 'started' : 'added',
           details: {
             status,
-            start_date: userBookData.start_date
+            start_date: userBookData.start_date,
+            progress: userBookData.progress
           } as Json,
         });
       
@@ -458,14 +622,14 @@ export const useUpdateUserBook = () => {
       
       if (error) throw error;
       
-      // Create reading activity - fixed array issue
+      // Create reading activity
       let activityType = 'updated';
       if (updates.status === 'finished') activityType = 'finished';
       if (updates.status === 'currently-reading' && !data.start_date) activityType = 'started';
       
       await supabase
         .from('reading_activity')
-        .insert({  // Removed array brackets
+        .insert({
           book_id: data.book_id,
           user_id: user.id,
           activity_type: activityType,
@@ -561,10 +725,10 @@ export const useAddBookshelf = () => {
       
       const { data, error } = await supabase
         .from('bookshelves')
-        .insert([{
+        .insert({
           name,
           user_id: user.id
-        }])
+        })
         .select()
         .single();
       
@@ -639,10 +803,10 @@ export const useAddBookToBookshelf = () => {
     }) => {
       const { data, error } = await supabase
         .from('bookshelf_books')
-        .insert([{
+        .insert({
           bookshelf_id: bookshelfId,
           user_book_id: userBookId
-        }])
+        })
         .select()
         .single();
       

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { BookView, BookshelfFilters } from "@/types/book";
 import BookCard from "@/components/BookCard";
@@ -80,9 +81,13 @@ const Bookshelf = () => {
   };
 
   const handleAddBook = (book: any) => {
+    const { status = 'want-to-read', progress = 0 } = book;
+
     addUserBook.mutate({
       bookId: book.id,
-      status: "want-to-read"
+      status,
+      progress,
+      notes: book.notes
     });
   };
   

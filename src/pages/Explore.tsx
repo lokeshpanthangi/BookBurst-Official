@@ -22,7 +22,6 @@ import {
   useQuery, 
   useQueryClient 
 } from "@tanstack/react-query";
-import * as googleBooksService from "@/services/googleBooksService";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
   Pagination, 
@@ -34,6 +33,12 @@ import {
 } from "@/components/ui/pagination";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { 
+  fetchTrendingBooks, 
+  fetchNewReleases, 
+  fetchRecommendedBooks, 
+  useSearchOpenLibrary 
+} from "@/services/bookService";
 
 const ITEMS_PER_PAGE = 20;
 
@@ -49,32 +54,28 @@ const Explore = () => {
   // Fetch trending, new releases, and recommended books
   const trendingQuery = useQuery({
     queryKey: ['trending-books'],
-    queryFn: () => googleBooksService.fetchTrendingBooks(),
+    queryFn: fetchTrendingBooks,
   });
 
   const newReleasesQuery = useQuery({
     queryKey: ['new-releases'],
-    queryFn: () => googleBooksService.fetchNewReleases(),
+    queryFn: fetchNewReleases,
   });
 
   const recommendedQuery = useQuery({
     queryKey: ['recommended-books'],
-    queryFn: () => googleBooksService.fetchRecommendedBooks(),
+    queryFn: fetchRecommendedBooks,
   });
 
   // Search books with pagination
-  const searchBooksQuery = useQuery({
-    queryKey: ['search-books', searchQuery, searchPage],
-    queryFn: () => googleBooksService.searchBooks(searchQuery, searchPage, ITEMS_PER_PAGE),
-    enabled: searchQuery.length > 0,
-  });
+  const searchBooksQuery = useSearchOpenLibrary(searchQuery, searchPage, ITEMS_PER_PAGE);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
       setActiveTab("search");
       setSearchPage(0);
-      queryClient.invalidateQueries({ queryKey: ['search-books'] });
+      queryClient.invalidateQueries({ queryKey: ['openLibrary'] });
     }
   };
 
@@ -290,7 +291,7 @@ const Explore = () => {
               renderLoadingState()
             ) : searchBooksQuery.isError ? (
               renderErrorAlert(searchBooksQuery.error)
-            ) : searchBooksQuery.data?.books.length ? (
+            ) : searchBooksQuery.data?.books?.length ? (
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-8">
                   {searchBooksQuery.data.books.map((book) => (
@@ -365,7 +366,7 @@ const Explore = () => {
         <div>
           <h3 className="text-xl font-medium mb-3">Search by Genre</h3>
           <div className="flex flex-wrap gap-2">
-            {["Fantasy", "Mystery", "Romance", "Sci-Fi", "Biography", "History", "Poetry", "Self-Help"].map(
+            {["Fantasy", "Mystery", "Romance", "Science Fiction", "Biography", "History", "Poetry", "Self-Help"].map(
               (genre) => (
                 <Button
                   key={genre}
@@ -375,7 +376,7 @@ const Explore = () => {
                     setSearchQuery(genre);
                     setActiveTab("search");
                     setSearchPage(0);
-                    queryClient.invalidateQueries({ queryKey: ['search-books'] });
+                    queryClient.invalidateQueries({ queryKey: ['openLibrary'] });
                   }}
                 >
                   {genre}
@@ -388,7 +389,7 @@ const Explore = () => {
         <div>
           <h3 className="text-xl font-medium mb-3">Popular Authors</h3>
           <div className="flex flex-wrap gap-2">
-            {["Stephen King", "J.K. Rowling", "James Patterson", "George R.R. Martin"].map(
+            {["J.K. Rowling", "Stephen King", "George R.R. Martin", "Jane Austen"].map(
               (author) => (
                 <Button
                   key={author}
@@ -398,7 +399,7 @@ const Explore = () => {
                     setSearchQuery(`author:${author}`);
                     setActiveTab("search");
                     setSearchPage(0);
-                    queryClient.invalidateQueries({ queryKey: ['search-books'] });
+                    queryClient.invalidateQueries({ queryKey: ['openLibrary'] });
                   }}
                 >
                   {author}
@@ -415,10 +416,10 @@ const Explore = () => {
               variant="outline"
               size="sm"
               onClick={() => {
-                setSearchQuery("bestsellers");
+                setSearchQuery("bestseller");
                 setActiveTab("search");
                 setSearchPage(0);
-                queryClient.invalidateQueries({ queryKey: ['search-books'] });
+                queryClient.invalidateQueries({ queryKey: ['openLibrary'] });
               }}
             >
               Bestsellers
@@ -427,10 +428,10 @@ const Explore = () => {
               variant="outline"
               size="sm"
               onClick={() => {
-                setSearchQuery("award winning");
+                setSearchQuery("award winner");
                 setActiveTab("search");
                 setSearchPage(0);
-                queryClient.invalidateQueries({ queryKey: ['search-books'] });
+                queryClient.invalidateQueries({ queryKey: ['openLibrary'] });
               }}
             >
               Award Winners
@@ -440,10 +441,10 @@ const Explore = () => {
               size="sm"
               onClick={() => {
                 const currentYear = new Date().getFullYear();
-                setSearchQuery(`published:${currentYear}`);
+                setSearchQuery(`${currentYear}`);
                 setActiveTab("search");
                 setSearchPage(0);
-                queryClient.invalidateQueries({ queryKey: ['search-books'] });
+                queryClient.invalidateQueries({ queryKey: ['openLibrary'] });
               }}
             >
               This Year's Releases

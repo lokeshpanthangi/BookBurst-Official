@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Book } from "@/types/book";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ import { X, Search, BookPlus, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
+import { Slider } from "@/components/ui/slider";
 
 interface AddBookModalProps {
   open: boolean;
@@ -57,6 +59,8 @@ const AddBookModal = ({ open, onOpenChange, onAddBook }: AddBookModalProps) => {
     isbn: "",
   });
   
+  const [status, setStatus] = useState<'want-to-read' | 'currently-reading' | 'finished'>('want-to-read');
+  const [readingProgress, setReadingProgress] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   
@@ -102,42 +106,43 @@ const AddBookModal = ({ open, onOpenChange, onAddBook }: AddBookModalProps) => {
     setIsSearching(true);
     
     try {
-      // Simulated API call to Google Books - in production, replace with actual API call
-      // Example: const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(searchQuery)}`);
+      // Using Open Library search API
+      const response = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(searchQuery)}&limit=10`);
       
-      // For now, simulating search results after delay
-      setTimeout(() => {
-        const mockResults: Book[] = [
-          {
-            id: `search-${Date.now()}-1`,
-            title: `${searchQuery} - The Novel`,
-            author: "Famous Author",
-            coverImage: "https://images.unsplash.com/photo-1589998059171-988d887df646?auto=format&fit=crop&q=80&w=300",
-            description: "A fascinating book about many things related to your search.",
-            genres: ["Fiction", "Adventure"],
-            publishedDate: "2023",
-            publisher: "Great Books Inc.",
-            pageCount: 320,
-            isbn: "9781234567897",
-          },
-          {
-            id: `search-${Date.now()}-2`,
-            title: `The ${searchQuery} Chronicles`,
-            author: "Another Writer",
-            coverImage: "https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=300",
-            description: "An epic tale spanning generations.",
-            genres: ["Fantasy", "Science Fiction"],
-            publishedDate: "2022",
-            publisher: "Fantasy Press",
-            pageCount: 450,
-            isbn: "9781234567890",
-          },
-        ];
+      if (!response.ok) {
+        throw new Error('Failed to fetch from Open Library');
+      }
+      
+      const data = await response.json();
+      
+      // Map the OpenLibrary data to our Book format
+      const books: Book[] = data.docs.map((book: any) => {
+        const coverID = book.cover_i;
+        const coverUrl = coverID 
+          ? `https://covers.openlibrary.org/b/id/${coverID}-M.jpg`
+          : 'https://images.unsplash.com/photo-1589998059171-988d887df646?auto=format&fit=crop&q=80&w=300';
         
-        setSearchResults(mockResults);
-        setIsSearching(false);
-      }, 1000);
+        return {
+          id: book.key || `ol-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          title: book.title || 'Unknown Title',
+          author: book.author_name ? book.author_name.join(', ') : 'Unknown Author',
+          coverImage: coverUrl,
+          description: book.description || '',
+          publishedDate: book.first_publish_year ? book.first_publish_year.toString() : '',
+          publisher: book.publisher ? book.publisher[0] : '',
+          pageCount: book.number_of_pages_median || 0,
+          isbn: book.isbn ? book.isbn[0] : '',
+          language: book.language ? book.language[0] : '',
+          genres: book.subject ? book.subject.slice(0, 5) : [],
+          averageRating: 0,
+          ratingsCount: 0,
+        };
+      });
+      
+      setSearchResults(books);
+      setIsSearching(false);
     } catch (error) {
+      console.error('Error searching books:', error);
       toast({
         title: "Error searching books",
         description: "Failed to search for books. Please try again.",
@@ -169,7 +174,7 @@ const AddBookModal = ({ open, onOpenChange, onAddBook }: AddBookModalProps) => {
     setIsSubmitting(true);
     
     try {
-      // In a real app, you would save this to your database
+      // Create a book object for database
       const book: Book = {
         id: `book-${Date.now()}`,
         title: newBook.title!,
@@ -185,8 +190,25 @@ const AddBookModal = ({ open, onOpenChange, onAddBook }: AddBookModalProps) => {
         ratingsCount: 0,
       };
       
-      // Add book to user's shelf (want-to-read by default)
-      onAddBook(book);
+      // First, add the book to the database
+      const addBookResponse = await fetch('/api/books', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(book),
+      });
+      
+      if (!addBookResponse.ok) {
+        throw new Error('Failed to add book to database');
+      }
+      
+      // Add book to user's shelf with selected status
+      onAddBook({
+        ...book,
+        status,
+        progress: status === 'currently-reading' ? readingProgress : undefined,
+      });
       
       toast({
         title: "Book added",
@@ -206,11 +228,13 @@ const AddBookModal = ({ open, onOpenChange, onAddBook }: AddBookModalProps) => {
         isbn: "",
       });
       setSelectedGenres([]);
+      setStatus('want-to-read');
+      setReadingProgress(0);
       onOpenChange(false);
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error adding book",
-        description: "Failed to add book. Please try again.",
+        description: error.message || "Failed to add book. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -255,6 +279,7 @@ const AddBookModal = ({ open, onOpenChange, onAddBook }: AddBookModalProps) => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="flex-1"
+                onKeyDown={(e) => e.key === 'Enter' && searchBooks()}
               />
               <Button onClick={searchBooks} disabled={isSearching}>
                 {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
@@ -279,12 +304,19 @@ const AddBookModal = ({ open, onOpenChange, onAddBook }: AddBookModalProps) => {
                         src={book.coverImage} 
                         alt={book.title} 
                         className="w-full h-full object-cover"
+                        onError={(e) => {
+                          // Fallback for image loading errors
+                          (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1589998059171-988d887df646?auto=format&fit=crop&q=80&w=300";
+                        }}
                       />
                     </div>
                     <div className="flex-1">
                       <h3 className="font-semibold">{book.title}</h3>
                       <p className="text-sm text-muted-foreground">{book.author}</p>
-                      <div className="flex gap-1 mt-2">
+                      {book.publishedDate && (
+                        <p className="text-xs text-muted-foreground">Published: {book.publishedDate}</p>
+                      )}
+                      <div className="flex flex-wrap gap-1 mt-2">
                         {book.genres?.slice(0, 2).map((genre) => (
                           <span 
                             key={genre} 
@@ -363,6 +395,40 @@ const AddBookModal = ({ open, onOpenChange, onAddBook }: AddBookModalProps) => {
                 rows={3}
               />
             </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="status" className="text-right">
+                Status <span className="text-destructive">*</span>
+              </Label>
+              <Select 
+                value={status} 
+                onValueChange={(value: 'want-to-read' | 'currently-reading' | 'finished') => setStatus(value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="want-to-read">Want to Read</SelectItem>
+                  <SelectItem value="currently-reading">Currently Reading</SelectItem>
+                  <SelectItem value="finished">Finished</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {status === 'currently-reading' && (
+              <div className="space-y-2">
+                <Label className="text-right flex justify-between">
+                  <span>Reading Progress</span>
+                  <span>{readingProgress}%</span>
+                </Label>
+                <Slider 
+                  value={[readingProgress]} 
+                  onValueChange={(values) => setReadingProgress(values[0])} 
+                  max={100} 
+                  step={1}
+                />
+              </div>
+            )}
             
             <div className="space-y-2">
               <Label className="text-right">
@@ -467,7 +533,7 @@ const AddBookModal = ({ open, onOpenChange, onAddBook }: AddBookModalProps) => {
           </DialogClose>
           <Button 
             onClick={handleAddBook} 
-            disabled={isSubmitting || (!newBook.title && !newBook.author)}
+            disabled={isSubmitting || !newBook.title || !newBook.author}
             className="relative overflow-hidden"
           >
             {isSubmitting && (
