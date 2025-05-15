@@ -56,11 +56,6 @@ const ExploreCard = ({ book, onAddToShelf }: ExploreCardProps) => {
               View
             </Link>
           </Button>
-          
-          <Button size="sm" onClick={onAddToShelf}>
-            <PlusCircle className="mr-1 h-3 w-3" />
-            Add
-          </Button>
         </div>
       </div>
     </div>

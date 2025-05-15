@@ -223,37 +223,35 @@ const BookDetail = () => {
     if (!book || !userBook) return;
     
     try {
-      const updatedUserBook = {
-        ...userBook,
-        status,
-        updated_at: new Date().toISOString()
+      // Create updates object with only the fields we want to update
+      const updates: Partial<UserBook> = {
+        status: status
       };
       
       // If status is 'currently-reading' and there's no start date, set it to today
-      if (status === 'currently-reading' && !updatedUserBook.start_date) {
-        updatedUserBook.start_date = new Date().toISOString();
+      if (status === 'currently-reading' && !userBook.start_date) {
+        updates.startDate = new Date().toISOString();
       }
       
       // If status is 'finished' and there's no finish date, set it to today
-      if (status === 'finished' && !updatedUserBook.finish_date) {
-        updatedUserBook.finish_date = new Date().toISOString();
+      if (status === 'finished') {
+        if (!userBook.finish_date) {
+          updates.finishDate = new Date().toISOString();
+        }
         // If there's no progress or progress < 100, set it to 100%
-        if (!updatedUserBook.progress || updatedUserBook.progress < 100) {
-          updatedUserBook.progress = 100;
+        if (!userBook.progress || userBook.progress < 100) {
+          updates.progress = 100;
         }
       }
       
-      const { data, error } = await supabase
-        .from('user_books')
-        .update(updatedUserBook)
-        .eq('id', userBook.id)
-        .select()
-        .single();
+      // Use the updateUserBook hook to update the book status
+      const result = await updateUserBook.mutateAsync({
+        id: userBook.id,
+        updates: updates
+      });
       
-      if (error) throw error;
-      
-      if (data) {
-        setUserBook(data);
+      if (result) {
+        setUserBook(result);
         
         toast({
           title: 'Status updated',
@@ -274,23 +272,16 @@ const BookDetail = () => {
     if (!book || !userBook) return;
     
     try {
-      const updatedUserBook = {
-        ...userBook,
-        rating,
-        updated_at: new Date().toISOString()
-      };
+      // Use the updateUserBook hook to update the rating
+      const result = await updateUserBook.mutateAsync({
+        id: userBook.id,
+        updates: {
+          userRating: rating
+        }
+      });
       
-      const { data, error } = await supabase
-        .from('user_books')
-        .update(updatedUserBook)
-        .eq('id', userBook.id)
-        .select()
-        .single();
-      
-      if (error) throw error;
-      
-      if (data) {
-        setUserBook(data);
+      if (result) {
+        setUserBook(result);
         setUserRating(rating);
         
         toast({
@@ -312,23 +303,16 @@ const BookDetail = () => {
     if (!book || !userBook) return;
     
     try {
-      const updatedUserBook = {
-        ...userBook,
-        notes,
-        updated_at: new Date().toISOString()
-      };
+      // Use the updateUserBook hook to update notes
+      const result = await updateUserBook.mutateAsync({
+        id: userBook.id,
+        updates: {
+          notes: notes
+        }
+      });
       
-      const { data, error } = await supabase
-        .from('user_books')
-        .update(updatedUserBook)
-        .eq('id', userBook.id)
-        .select()
-        .single();
-      
-      if (error) throw error;
-      
-      if (data) {
-        setUserBook(data);
+      if (result) {
+        setUserBook(result);
         
         toast({
           title: 'Notes saved',
@@ -349,35 +333,31 @@ const BookDetail = () => {
     if (!book || !userBook) return;
     
     try {
-      const updatedUserBook = {
-        ...userBook,
-        progress,
-        updated_at: new Date().toISOString()
+      // Create updates object with the fields we want to update
+      const updates: Partial<UserBook> = {
+        progress: progress
       };
       
       // If progress is 100% and status is 'currently-reading', ask if they want to mark as finished
       if (progress === 100 && userBook.status === 'currently-reading') {
         // For now, we'll just automatically update the status to finished
-        updatedUserBook.status = 'finished';
-        updatedUserBook.finish_date = new Date().toISOString();
+        updates.status = 'finished';
+        updates.finishDate = new Date().toISOString();
       }
       
       // If there's no start date, set it to today
-      if (!updatedUserBook.start_date && progress > 0) {
-        updatedUserBook.start_date = new Date().toISOString();
+      if (!userBook.start_date && progress > 0) {
+        updates.startDate = new Date().toISOString();
       }
       
-      const { data, error } = await supabase
-        .from('user_books')
-        .update(updatedUserBook)
-        .eq('id', userBook.id)
-        .select()
-        .single();
+      // Use the updateUserBook hook to update the progress
+      const result = await updateUserBook.mutateAsync({
+        id: userBook.id,
+        updates: updates
+      });
       
-      if (error) throw error;
-      
-      if (data) {
-        setUserBook(data);
+      if (result) {
+        setUserBook(result);
         setProgressModalOpen(false);
         
         toast({
@@ -394,44 +374,72 @@ const BookDetail = () => {
       });
     }
   };
-  
-  const handlePrivacyChange = async (isPublic: boolean) => {
-    if (!book || !userBook) return;
     
-    try {
-      const updatedUserBook = {
-        ...userBook,
-        is_public: isPublic,
-        updated_at: new Date().toISOString()
-      };
+    if (!userBook.start_date && progress > 0) {
+      updates.startDate = new Date().toISOString();
+    }
+    
+    // Use the updateUserBook hook to update the progress
+    const result = await updateUserBook.mutateAsync({
+      id: userBook.id,
+      updates: updates
+    });
+    
+    if (result) {
+      setUserBook(result);
+      setProgressModalOpen(false);
       
-      const { data, error } = await supabase
-        .from('user_books')
-        .update(updatedUserBook)
-        .eq('id', userBook.id)
-        .select()
-        .single();
-      
-      if (error) throw error;
-      
-      if (data) {
-        setUserBook(data);
-        setIsPublic(isPublic);
-        
-        toast({
-          title: 'Privacy updated',
-          description: `Book is now ${isPublic ? 'public' : 'private'}`,
-        });
-      }
-    } catch (error) {
-      console.error('Error updating privacy:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to update privacy settings',
-        variant: 'destructive'
+        title: 'Progress updated',
+        description: `Reading progress updated to ${progress}%`,
       });
     }
-  };
+  } catch (error) {
+    console.error('Error updating progress:', error);
+    toast({
+      title: 'Error',
+      description: 'Failed to update reading progress',
+      variant: 'destructive'
+    });
+  }
+};
+
+const handlePrivacyChange = async (isPublic: boolean) => {
+  if (!book || !userBook) return;
+  
+  try {
+    // We need to handle is_public differently since it's not part of the UserBook type
+    // but is included in the database schema
+    const { data, error } = await supabase
+      .from('user_books')
+      .update({
+        is_public: isPublic,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userBook.id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    if (data) {
+      setUserBook(data);
+      setIsPublic(isPublic);
+      
+      toast({
+        title: 'Privacy updated',
+        description: isPublic ? 'Book is now public' : 'Book is now private',
+      });
+    }
+  } catch (error) {
+    console.error('Error updating privacy:', error);
+    toast({
+      title: 'Error',
+      description: 'Failed to update privacy settings',
+      variant: 'destructive'
+    });
+  }
+};
   
   const openReviewModal = () => {
     setReviewModalOpen(true);

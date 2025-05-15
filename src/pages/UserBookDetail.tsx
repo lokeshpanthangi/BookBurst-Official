@@ -320,7 +320,7 @@ const UserBookDetail = () => {
           .insert({
             user_id: user.id,
             book_id: book.id,
-            status: 'to-read', // Default status
+            status: 'want-to-read', // Default status
             progress: 0,
             notes: personalNotes,
             created_at: new Date().toISOString(),
@@ -369,8 +369,8 @@ const UserBookDetail = () => {
     try {
       console.log('Updating book status:', { book, user, selectedStatus, progress });
       
-      // Prepare progress value - only non-zero for 'reading' status
-      const progressValue = selectedStatus === 'reading' ? progress : 0;
+      // Prepare progress value - only non-zero for 'currently-reading' status
+      const progressValue = selectedStatus === 'currently-reading' ? progress : 0;
       
       // First, check if the user already has this book
       const { data: existingBooks, error: checkError } = await supabase
@@ -838,29 +838,29 @@ const UserBookDetail = () => {
                 <div className="mb-4">
                   <p className="text-sm font-medium mb-2">Reading Status</p>
                   <div className="grid grid-cols-2 gap-2">
-                    {['to read', 'reading', 'completed'].map(status => (
+                    {['want-to-read', 'currently-reading', 'finished'].map(status => (
                       <Button
                         key={status}
                         type="button"
                         variant={selectedStatus === status ? "default" : "outline"}
                         onClick={() => {
                           setSelectedStatus(status);
-                          // Reset progress to 0 if not reading
-                          if (status !== 'reading') {
+                          // Reset progress to 0 if not currently-reading
+                          if (status !== 'currently-reading') {
                             setProgress(0);
                           }
                         }}
                         className="justify-start"
                       >
-                        {status === 'to read' ? 'Want to Read' : 
-                         status === 'reading' ? 'Reading' : 
-                         'Completed'}
+                        {status === 'want-to-read' ? 'Want to Read' : 
+                         status === 'currently-reading' ? 'Reading' : 
+                         'Finished'}
                       </Button>
                     ))}
                   </div>
                 </div>
                 
-                {selectedStatus === 'reading' && (
+                {selectedStatus === 'currently-reading' && (
                   <div className="mb-6">
                     <div className="flex justify-between items-center mb-2">
                       <p className="text-sm font-medium">Progress: {progress}%</p>
