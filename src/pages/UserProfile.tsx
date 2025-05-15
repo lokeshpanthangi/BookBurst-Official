@@ -102,10 +102,9 @@ const UserProfile = () => {
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold">Bookshelf</h2>
             
-            {!userBooksData?.isFollowing && userId !== currentUser?.id && (
-              <div className="text-sm text-muted-foreground flex items-center">
-                <UserCheck className="mr-2 h-4 w-4" />
-                Follow to see private books
+            {userId !== currentUser?.id && (
+              <div className="text-sm text-muted-foreground">
+                Showing public books
               </div>
             )}
           </div>

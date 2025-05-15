@@ -4,51 +4,34 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { User } from "@/types/user";
 
-// Create a custom table for follows if it doesn't exist
-const createFollowsTable = async () => {
+// Ensure the is_public column exists in user_books table
+const ensureUserBooksPublicColumn = async () => {
   try {
-    // Check if the table exists by trying to select from it
-    const { error } = await supabase
-      .rpc('create_follows_table_if_not_exists');
+    // Check if the is_public column exists
+    const { error } = await supabase.rpc('ensure_user_books_public_column', {
+      sql_code: `
+        DO $$
+        BEGIN
+          -- Add is_public column to user_books if it doesn't exist
+          ALTER TABLE user_books ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT true;
+        END;
+        $$ LANGUAGE plpgsql;
+      `
+    });
     
     if (error) {
-      console.error('Error creating follows table:', error);
-      
-      // Create the function to create the table if it doesn't exist
-      await supabase.rpc('create_follows_function', {
-        sql_code: `
-          CREATE OR REPLACE FUNCTION create_follows_table_if_not_exists()
-          RETURNS void AS $$
-          BEGIN
-            -- Create follows table if it doesn't exist
-            CREATE TABLE IF NOT EXISTS follows (
-              id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-              follower_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-              following_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-              created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-              UNIQUE(follower_id, following_id)
-            );
-            
-            -- Add is_private column to user_books if it doesn't exist
-            ALTER TABLE user_books ADD COLUMN IF NOT EXISTS is_private BOOLEAN DEFAULT false;
-          END;
-          $$ LANGUAGE plpgsql;
-        `
-      });
-      
-      // Try creating the table again
-      await supabase.rpc('create_follows_table_if_not_exists');
+      console.error('Error ensuring is_public column exists:', error);
     }
     
     return true;
   } catch (error) {
-    console.error('Error setting up follows functionality:', error);
+    console.error('Error setting up user_books table:', error);
     return false;
   }
 };
 
-// Initialize the follows table
-createFollowsTable();
+// Initialize the user_books table
+ensureUserBooksPublicColumn();
 
 // Get all users
 export const useAllUsers = () => {
@@ -164,7 +147,7 @@ export const useUserPublicBooks = (userId: string) => {
   });
 };
 
-// Get user's all books (both public and private)
+// Get user's books - all books for current user, only public books for other users
 export const useUserAllBooks = (userId: string) => {
   const { user: currentUser } = useAuth();
   
@@ -173,14 +156,22 @@ export const useUserAllBooks = (userId: string) => {
     queryFn: async () => {
       if (!userId) throw new Error('User ID is required');
       
-      // Get all books for the user
-      const { data, error } = await supabase
+      // Create query to get books
+      let query = supabase
         .from('user_books')
         .select(`
           *,
           books(*)
         `)
         .eq('user_id', userId);
+      
+      // If viewing another user's books, only show public ones
+      if (currentUser?.id !== userId) {
+        query = query.eq('is_public', true);
+      }
+      
+      // Execute the query
+      const { data, error } = await query;
       
       if (error) throw error;
       
@@ -193,6 +184,7 @@ export const useUserAllBooks = (userId: string) => {
       return {
         books: data.map((item: any) => ({
           ...item.books,
+          coverImage: item.books.cover_image, // Explicitly map cover_image to coverImage
           status: item.status,
           startDate: item.start_date,
           finishDate: item.finish_date,
@@ -200,153 +192,15 @@ export const useUserAllBooks = (userId: string) => {
           progress: item.progress,
           notes: item.notes,
           userBookId: item.id,
-          is_private: item.is_private
+          is_public: item.is_public
         })),
-        isFollowing: false // We don't need this anymore but keep it for compatibility
+        // No follow concept needed
+        isFollowing: true // Always true to maintain compatibility with existing code
       };
     },
     enabled: !!userId,
   });
 };
 
-// Check if current user follows a specific user
-export const useIsFollowing = (userId: string) => {
-  const { user: currentUser } = useAuth();
-  
-  return useQuery({
-    queryKey: ['isFollowing', userId],
-    queryFn: async () => {
-      if (!userId || !currentUser) return false;
-      
-      const { data, error } = await supabase
-        .from('follows')
-        .select('*')
-        .eq('follower_id', currentUser.id)
-        .eq('following_id', userId)
-        .maybeSingle();
-      
-      if (error) throw error;
-      
-      return !!data;
-    },
-    enabled: !!userId && !!currentUser,
-  });
-};
-
-// Follow a user
-export const useFollowUser = () => {
-  const queryClient = useQueryClient();
-  const { user } = useAuth();
-  const { toast } = useToast();
-  
-  return useMutation({
-    mutationFn: async (userId: string) => {
-      if (!user) throw new Error('User must be authenticated');
-      if (user.id === userId) throw new Error('Cannot follow yourself');
-      
-      const { data, error } = await supabase
-        .from('follows')
-        .insert({
-          follower_id: user.id,
-          following_id: userId
-        })
-        .select()
-        .single();
-      
-      if (error) throw error;
-      
-      return data;
-    },
-    onSuccess: (_, userId) => {
-      queryClient.invalidateQueries({ queryKey: ['isFollowing', userId] });
-      queryClient.invalidateQueries({ queryKey: ['userAllBooks', userId] });
-      toast({
-        title: "User followed successfully",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Failed to follow user",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-};
-
-// Unfollow a user
-export const useUnfollowUser = () => {
-  const queryClient = useQueryClient();
-  const { user } = useAuth();
-  const { toast } = useToast();
-  
-  return useMutation({
-    mutationFn: async (userId: string) => {
-      if (!user) throw new Error('User must be authenticated');
-      
-      const { error } = await supabase
-        .from('follows')
-        .delete()
-        .eq('follower_id', user.id)
-        .eq('following_id', userId);
-      
-      if (error) throw error;
-      
-      return userId;
-    },
-    onSuccess: (userId) => {
-      queryClient.invalidateQueries({ queryKey: ['isFollowing', userId] });
-      queryClient.invalidateQueries({ queryKey: ['userAllBooks', userId] });
-      toast({
-        title: "User unfollowed successfully",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Failed to unfollow user",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-};
-
-// Get followers count
-export const useFollowersCount = (userId: string) => {
-  return useQuery({
-    queryKey: ['followersCount', userId],
-    queryFn: async () => {
-      if (!userId) return 0;
-      
-      const { count, error } = await supabase
-        .from('follows')
-        .select('*', { count: 'exact', head: true })
-        .eq('following_id', userId);
-      
-      if (error) throw error;
-      
-      return count || 0;
-    },
-    enabled: !!userId,
-  });
-};
-
-// Get following count
-export const useFollowingCount = (userId: string) => {
-  return useQuery({
-    queryKey: ['followingCount', userId],
-    queryFn: async () => {
-      if (!userId) return 0;
-      
-      const { count, error } = await supabase
-        .from('follows')
-        .select('*', { count: 'exact', head: true })
-        .eq('follower_id', userId);
-      
-      if (error) throw error;
-      
-      return count || 0;
-    },
-    enabled: !!userId,
-  });
-};
+// No follow-related functions needed
+// All users can see public books from other users without following

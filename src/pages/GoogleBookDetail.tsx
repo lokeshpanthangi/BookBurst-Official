@@ -192,7 +192,8 @@ const GoogleBookDetail = () => {
         status: bookshelfData.status,
         startDate: bookshelfData.startDate,
         progress: bookshelfData.progress,
-        notes: bookshelfData.notes
+        notes: bookshelfData.notes,
+        isPublic: bookshelfData.isPublic // Pass the isPublic parameter from the modal
       });
       
       setAddToBookshelfModalOpen(false);

@@ -511,13 +511,15 @@ export const useAddUserBook = () => {
       status,
       startDate,
       progress,
-      notes 
+      notes,
+      isPublic = true // Default to true if not provided
     }: { 
       bookId: string; 
       status: 'currently-reading' | 'want-to-read' | 'finished';
       startDate?: string;
       progress?: number;
       notes?: string;
+      isPublic?: boolean;
     }) => {
       if (!user) throw new Error("User must be authenticated");
       
@@ -540,7 +542,8 @@ export const useAddUserBook = () => {
         user_id: user.id,
         start_date: status === 'currently-reading' ? startDate || new Date().toISOString() : startDate,
         progress: status === 'currently-reading' ? progress || 0 : null,
-        notes
+        notes,
+        is_public: isPublic // Include the is_public flag from the parameter
       };
       
       // Add the book to the user's collection
